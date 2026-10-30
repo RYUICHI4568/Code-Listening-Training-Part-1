@@ -521,6 +521,21 @@
                 margin-left: 4px !important;
             }
         }
+        /* 聴音訓練 */
+        .et-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; }
+        .et-row select { padding: 8px 10px; font-size: 0.9rem; border-radius: 6px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); max-width: 100%; }
+        .et-label { font-weight: 700; font-size: 0.9rem; margin: 8px 0 6px; }
+        .et-config { margin: 10px 0; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; }
+        .et-config summary { cursor: pointer; font-weight: 700; min-height: 32px; }
+        .et-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .et-chip { font: inherit; font-size: 0.85rem; min-width: 44px; min-height: 36px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--card-color); color: var(--text-color); cursor: pointer; }
+        .et-chip[aria-pressed="true"] { background: var(--primary-color); border-color: var(--primary-color); color: #fff; }
+        .et-score { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 18px; margin: 12px 0; font-weight: 700; }
+        .et-score b { font-size: 1.2rem; }
+        button.chord-type { font: inherit; font-weight: 600; min-height: 44px; }
+        button.chord-type:disabled { cursor: default; opacity: 0.55; }
+        button.chord-type.et-correct, button.chord-type.et-correct:hover { background: var(--primary-color); border-color: var(--primary-color); color: #fff; opacity: 1; }
+        button.chord-type.et-wrong, button.chord-type.et-wrong:hover { background: var(--accent-color); border-color: var(--accent-color); color: #fff; opacity: 1; }
         /* 画面下の固定表示（ステータス・English・ログ）がコンテンツに重ならないよう余白を確保 */
         body {
             padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
@@ -841,26 +856,44 @@
         <!-- Ear Training Mode -->
         <div class="settings" id="ear-training-settings">
             <div class="mode-section">
-                <h3>👂 聴音訓練</h3>
-                <p>コードを聞いて、正しい答えを選択してください。</p>
-                
+                <h3 id="et-title">👂 聴音訓練</h3>
+                <p id="et-desc">コードを聞いて、正しい答えを選んでください。</p>
+
+                <div class="et-row">
+                    <span id="et-mode-label" class="et-label">出題形式</span>
+                    <select id="et-mode" onchange="setEarTrainingMode(this.value)" aria-labelledby="et-mode-label">
+                        <option value="type">コードの種類だけ当てる（おすすめ）</option>
+                        <option value="full">キー＋種類を当てる</option>
+                    </select>
+                </div>
+
+                <details class="et-config">
+                    <summary id="et-config-summary">🎛️ 出題するキー・コードタイプを選ぶ</summary>
+                    <div class="et-label" id="et-keys-label">キー</div>
+                    <div class="et-chips" id="et-keys"></div>
+                    <div class="et-label" id="et-types-label">コードタイプ</div>
+                    <div class="et-chips" id="et-types"></div>
+                </details>
+
+                <div id="et-score" class="et-score" aria-live="polite"></div>
+
                 <div id="ear-training-player" style="text-align: center; margin: 20px 0;">
-                    <button class="control-btn" onclick="playEarTrainingChord()">🎵 問題を再生</button>
-                    <button class="control-btn secondary" onclick="repeatEarTrainingChord()">🔄 もう一度</button>
+                    <button class="control-btn" id="et-play-btn" onclick="playEarTrainingChord()">🎵 問題を再生</button>
+                    <button class="control-btn secondary" id="et-repeat-btn" onclick="repeatEarTrainingChord()">🔄 もう一度</button>
                 </div>
 
                 <div class="chord-types" id="ear-training-options">
                     <!-- 選択肢が動的に生成される -->
                 </div>
 
-                <div id="ear-training-result" style="text-align: center; margin: 20px 0; font-size: 1.2rem;">
+                <div id="ear-training-result" aria-live="polite" style="text-align: center; margin: 20px 0; font-size: 1.2rem;">
                     <!-- 結果が表示される -->
                 </div>
             </div>
 
             <div class="control-buttons">
-                <button class="control-btn" onclick="nextEarTrainingQuestion()">➡️ 次の問題</button>
-                <button class="control-btn accent" onclick="resetEarTraining()">🔄 リセット</button>
+                <button class="control-btn" id="et-next-btn" onclick="nextEarTrainingQuestion()">➡️ 次の問題</button>
+                <button class="control-btn accent" id="et-reset-btn" onclick="resetEarTraining()">🔄 成績リセット</button>
             </div>
         </div>
 
@@ -1678,6 +1711,7 @@
                 if (option.textContent === 'Jazz') option.textContent = t.jazz;
                 if (option.textContent === 'モダンJazz') option.textContent = t.modernJazz;
             });
+            if (typeof updateEarTrainingLanguage === 'function') updateEarTrainingLanguage();
         }
 
         // === キー選択 ===
@@ -2460,10 +2494,13 @@
             });
         }
 
-        function playAdvancedChord(frequencies, chordName) {
+        function playAdvancedChord(frequencies, chordName, opts = {}) {
+            // opts.hideName: true のとき（聴音訓練の出題中）はコード名を表示も読み上げもしない
+            const hideName = opts.hideName === true;
+            const speakOrSkip = hideName ? () => Promise.resolve() : speakChord;
             try {
                 log(`🎵 高品質再生開始: ${chordName}`);
-                updatePlayedChordLabel(chordName);
+                updatePlayedChordLabel(hideName ? '🎧 ？' : chordName);
                 
                 // WAV音声を生成（エラーハンドリング追加）
                 let wavBuffer;
@@ -2518,7 +2555,7 @@
                                     // 5ms以下残っている場合は即座に実行
                                     const error = elapsed - exactTime;
                                     log(`⏱️ アルペジオ経過時間: ${elapsed}ms (予定: ${exactTime}ms, 誤差: ${error}ms)`);
-                                    speakChord(chordName).catch(err => {
+                                    speakOrSkip(chordName).catch(err => {
                                         log(`❌ TTS実行エラー: ${err.message}`);
                                     });
                                 } else {
@@ -2532,7 +2569,7 @@
                         } else {
                             // アルペジオなし: コード→TTS（即座に実行、循環サイクル改善）
                             const ttsStartTime = Date.now();
-                            speakChord(chordName).then(() => {
+                            speakOrSkip(chordName).then(() => {
                                 const ttsElapsed = Date.now() - ttsStartTime;
                                 log(`⏱️ TTS経過時間: ${ttsElapsed}ms`);
                             }).catch(err => {
@@ -3637,75 +3674,235 @@
         }
 
         // === 聴音訓練機能 ===
-        let currentEarTrainingChord = null;
-        let earTrainingOptions = [];
+        const ET_KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+        const ET_TYPES = [
+            ['', 'Major'], ['m', 'Minor'], ['7', 'Dom7'], ['maj7', 'Maj7'], ['m7', 'Min7'],
+            ['dim', 'Dim'], ['aug', 'Aug'], ['sus4', 'Sus4'], ['6', '6th'], ['9', '9th'],
+            ['11', '11th'], ['13', '13th'], ['add9', 'Add9'], ['maj9', 'Maj9'], ['m9', 'Min9'], ['dim7', 'Dim7']
+        ];
+        const ET_TYPE_NAME = Object.fromEntries(ET_TYPES);
+        const ET_TEXT = {
+            ja: {
+                title: '👂 聴音訓練', desc: 'コードを聞いて、正しい答えを選んでください。',
+                modeLabel: '出題形式', modeType: 'コードの種類だけ当てる（おすすめ）', modeFull: 'キー＋種類を当てる',
+                config: '🎛️ 出題するキー・コードタイプを選ぶ', keys: 'キー', types: 'コードタイプ',
+                play: '🎵 問題を再生', repeat: '🔄 もう一度', next: '➡️ 次の問題', reset: '🔄 成績リセット',
+                score: (c, t, r) => `正解 <b>${c}</b> / ${t}（${r}%）`, streak: s => `連続 <b>${s}</b>`, best: b => `最高連続 ${b}`,
+                ask: '🎧 どれでしょう？', correct: n => `✅ 正解！ ${n}`, wrong: n => `❌ 不正解… 正解は ${n}`,
+                needKey: '⚠️ キーを1つ以上選んでください', needType: '⚠️ コードタイプを2つ以上選んでください',
+                needPool: '⚠️ キーとコードタイプの組み合わせが2つ以上になるように選んでください',
+                pressPlay: '「問題を再生」を押してスタート'
+            },
+            en: {
+                title: '👂 Ear Training', desc: 'Listen to the chord and choose the correct answer.',
+                modeLabel: 'Question type', modeType: 'Chord quality only (recommended)', modeFull: 'Key + quality',
+                config: '🎛️ Choose keys and chord types', keys: 'Keys', types: 'Chord types',
+                play: '🎵 Play Question', repeat: '🔄 Repeat', next: '➡️ Next', reset: '🔄 Reset Score',
+                score: (c, t, r) => `Correct <b>${c}</b> / ${t} (${r}%)`, streak: s => `Streak <b>${s}</b>`, best: b => `Best ${b}`,
+                ask: '🎧 Which one?', correct: n => `✅ Correct! ${n}`, wrong: n => `❌ Wrong… The answer is ${n}`,
+                needKey: '⚠️ Select at least one key', needType: '⚠️ Select at least two chord types',
+                needPool: '⚠️ Select keys and chord types so that there are at least two combinations',
+                pressPlay: 'Press "Play Question" to start'
+            }
+        };
+        function etText() { return ET_TEXT[typeof currentLanguage !== 'undefined' && currentLanguage === 'en' ? 'en' : 'ja']; }
+
+        const earTraining = {
+            mode: 'type',
+            keys: ET_KEYS.slice(),
+            types: ['', 'm', '7', 'maj7', 'm7'],
+            current: null,       // { key, type }
+            options: [],         // [{ key, type }]
+            answered: false,
+            correct: 0, total: 0, streak: 0, best: 0
+        };
+        let etInitialized = false;
+
+        function etKeyLabel(key) { return key.replace('b', '♭'); }
+        function etChordName(c) { return c.key + c.type; }                       // 内部名（再生・読み上げ用）
+        function etChordLabel(c) { return etKeyLabel(c.key) + c.type; }          // 表示名（例: E♭m7）
+        function etFullLabel(c) { return `${etChordLabel(c)}（${ET_TYPE_NAME[c.type]}）`; }
+        function etOptionLabel(c) { return earTraining.mode === 'type' ? ET_TYPE_NAME[c.type] : (etKeyLabel(c.key) + c.type); }
+        function etSame(a, b) { return earTraining.mode === 'type' ? a.type === b.type : (a.key === b.key && a.type === b.type); }
+        function etPick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+        function etShuffle(arr) {
+            for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; }
+            return arr;
+        }
+
+        function etSave() {
+            try {
+                localStorage.setItem('earTrainingSettings', JSON.stringify({
+                    mode: earTraining.mode, keys: earTraining.keys, types: earTraining.types, best: earTraining.best
+                }));
+            } catch (e) { /* 保存できない環境では無視 */ }
+        }
+        function etLoad() {
+            try {
+                const d = JSON.parse(localStorage.getItem('earTrainingSettings') || 'null');
+                if (!d) return;
+                if (d.mode === 'type' || d.mode === 'full') earTraining.mode = d.mode;
+                if (Array.isArray(d.keys)) earTraining.keys = d.keys.filter(k => ET_KEYS.includes(k));
+                if (Array.isArray(d.types)) earTraining.types = d.types.filter(t => t in ET_TYPE_NAME);
+                if (Number.isFinite(d.best)) earTraining.best = d.best;
+            } catch (e) { /* 読めない場合は初期値 */ }
+        }
+
+        function initEarTraining() {
+            if (etInitialized) return;
+            etInitialized = true;
+            etLoad();
+            const keyBox = document.getElementById('et-keys');
+            const typeBox = document.getElementById('et-types');
+            if (!keyBox || !typeBox) return;
+            ET_KEYS.forEach(key => {
+                const b = document.createElement('button');
+                b.type = 'button'; b.className = 'et-chip'; b.dataset.key = key; b.textContent = etKeyLabel(key);
+                b.onclick = () => toggleEarTrainingKey(key);
+                keyBox.appendChild(b);
+            });
+            ET_TYPES.forEach(([type, name]) => {
+                const b = document.createElement('button');
+                b.type = 'button'; b.className = 'et-chip'; b.dataset.type = type; b.textContent = name;
+                b.onclick = () => toggleEarTrainingType(type);
+                typeBox.appendChild(b);
+            });
+            document.getElementById('et-mode').value = earTraining.mode;
+            etRefreshChips();
+            updateEarTrainingLanguage();
+        }
+
+        function etRefreshChips() {
+            document.querySelectorAll('#et-keys .et-chip').forEach(b => b.setAttribute('aria-pressed', earTraining.keys.includes(b.dataset.key) ? 'true' : 'false'));
+            document.querySelectorAll('#et-types .et-chip').forEach(b => b.setAttribute('aria-pressed', earTraining.types.includes(b.dataset.type) ? 'true' : 'false'));
+        }
+
+        function etRenderScore() {
+            const t = etText();
+            const el = document.getElementById('et-score');
+            if (!el) return;
+            const rate = earTraining.total ? Math.round(earTraining.correct / earTraining.total * 100) : 0;
+            el.innerHTML = `<span>${t.score(earTraining.correct, earTraining.total, rate)}</span><span>${t.streak(earTraining.streak)}</span><span>${t.best(earTraining.best)}</span>`;
+        }
+
+        function etClearQuestion() {
+            earTraining.current = null;
+            earTraining.options = [];
+            earTraining.answered = false;
+            document.getElementById('ear-training-options').innerHTML = '';
+            document.getElementById('ear-training-result').textContent = etText().pressPlay;
+            document.getElementById('ear-training-result').style.color = '';
+        }
+
+        function toggleEarTrainingKey(key) {
+            const list = earTraining.keys;
+            earTraining.keys = list.includes(key) ? list.filter(k => k !== key) : ET_KEYS.filter(k => list.includes(k) || k === key);
+            etRefreshChips(); etSave(); etClearQuestion();
+        }
+        function toggleEarTrainingType(type) {
+            const list = earTraining.types;
+            earTraining.types = list.includes(type) ? list.filter(t => t !== type) : ET_TYPES.map(x => x[0]).filter(t => list.includes(t) || t === type);
+            etRefreshChips(); etSave(); etClearQuestion();
+        }
+        function setEarTrainingMode(mode) {
+            earTraining.mode = mode === 'full' ? 'full' : 'type';
+            etSave(); etClearQuestion();
+        }
+
+        // 選択肢を作る（種類モード：選んだ種類すべて／キー＋種類モード：正解＋ダミー3つ）
+        function etBuildOptions(answer) {
+            if (earTraining.mode === 'type') {
+                return earTraining.types.map(type => ({ key: answer.key, type }));
+            }
+            const opts = [answer];
+            const pool = [];
+            earTraining.keys.forEach(key => earTraining.types.forEach(type => {
+                if (!(key === answer.key && type === answer.type)) pool.push({ key, type });
+            }));
+            // 紛らわしい選択肢を優先：同じキー違う種類×2、同じ種類違うキー×1、残りはランダム
+            const sameKey = etShuffle(pool.filter(c => c.key === answer.key));
+            const sameType = etShuffle(pool.filter(c => c.type === answer.type));
+            const picked = [...sameKey.slice(0, 2), ...sameType.slice(0, 1)];
+            etShuffle(pool.filter(c => !picked.includes(c))).forEach(c => { if (picked.length < 3) picked.push(c); });
+            picked.forEach(c => opts.push(c));
+            return etShuffle(opts);
+        }
 
         function playEarTrainingChord() {
-            const allKeys = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-            const allTypes = ['', 'm', '7', 'maj7', 'm7'];
-            
-            const randomKey = allKeys[Math.floor(Math.random() * allKeys.length)];
-            const randomType = allTypes[Math.floor(Math.random() * allTypes.length)];
-            currentEarTrainingChord = randomKey + randomType;
-            
-            // 選択肢を生成
-            earTrainingOptions = [currentEarTrainingChord];
-            while (earTrainingOptions.length < 4) {
-                const optionKey = allKeys[Math.floor(Math.random() * allKeys.length)];
-                const optionType = allTypes[Math.floor(Math.random() * allTypes.length)];
-                const option = optionKey + optionType;
-                if (!earTrainingOptions.includes(option)) {
-                    earTrainingOptions.push(option);
-                }
-            }
-            
-            // シャッフル
-            earTrainingOptions = earTrainingOptions.sort(() => Math.random() - 0.5);
-            
-            // 選択肢を表示
-            const optionsContainer = document.getElementById('ear-training-options');
-            optionsContainer.innerHTML = '';
-            earTrainingOptions.forEach(option => {
-                const button = document.createElement('div');
-                button.className = 'chord-type';
-                button.textContent = option || 'Major';
-                button.onclick = () => checkEarTrainingAnswer(option);
-                optionsContainer.appendChild(button);
+            initEarTraining();
+            const t = etText();
+            const resultEl = document.getElementById('ear-training-result');
+            resultEl.style.color = '';
+            if (earTraining.keys.length < 1) { resultEl.textContent = t.needKey; return; }
+            if (earTraining.mode === 'type' && earTraining.types.length < 2) { resultEl.textContent = t.needType; return; }
+            if (earTraining.mode === 'full' && earTraining.keys.length * earTraining.types.length < 2) { resultEl.textContent = t.needPool; return; }
+
+            // 直前と同じ答えが続かないようにする
+            let next, tries = 0;
+            do {
+                next = { key: etPick(earTraining.keys), type: etPick(earTraining.types) };
+                tries++;
+            } while (earTraining.current && etSame(next, earTraining.current) && tries < 20);
+            earTraining.current = next;
+            earTraining.answered = false;
+            earTraining.options = etBuildOptions(next);
+
+            const box = document.getElementById('ear-training-options');
+            box.innerHTML = '';
+            earTraining.options.forEach((opt, i) => {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'chord-type';
+                b.dataset.index = String(i);
+                b.textContent = etOptionLabel(opt);
+                b.onclick = () => checkEarTrainingAnswer(i);
+                box.appendChild(b);
             });
-            
-            // コードを再生
-            const frequencies = getChordFrequencies(randomKey, randomType);
-            playAdvancedChord(frequencies, currentEarTrainingChord);
-            
-            document.getElementById('ear-training-result').textContent = '';
-            log(`👂 聴音訓練: ${currentEarTrainingChord} を再生`);
+
+            resultEl.textContent = t.ask;
+            // タップ処理の中で同期的に再生（iPhone対策）。出題中はコード名を出さない
+            playAdvancedChord(getChordFrequencies(next.key, next.type), etChordName(next), { hideName: true });
+            log(`👂 聴音訓練: 出題 (${earTraining.mode})`);
         }
 
         function repeatEarTrainingChord() {
-            if (currentEarTrainingChord) {
-                const [key, type] = parseChordName(currentEarTrainingChord);
-                const frequencies = getChordFrequencies(key, type);
-                playAdvancedChord(frequencies, currentEarTrainingChord);
-            }
+            const c = earTraining.current;
+            if (!c) { playEarTrainingChord(); return; }
+            playAdvancedChord(getChordFrequencies(c.key, c.type), etChordName(c), { hideName: !earTraining.answered });
         }
 
-        function checkEarTrainingAnswer(selectedAnswer) {
-            const resultElement = document.getElementById('ear-training-result');
-            
-            if (selectedAnswer === currentEarTrainingChord) {
-                resultElement.innerHTML = `✅ 正解！ ${currentEarTrainingChord}`;
-                resultElement.style.color = 'var(--primary-color)';
+        function checkEarTrainingAnswer(index) {
+            const c = earTraining.current;
+            if (!c || earTraining.answered) return;   // 1問につき回答は1回
+            earTraining.answered = true;
+            const t = etText();
+            const chosen = earTraining.options[index];
+            const ok = etSame(chosen, c);
+
+            earTraining.total++;
+            if (ok) {
+                earTraining.correct++;
+                earTraining.streak++;
+                if (earTraining.streak > earTraining.best) { earTraining.best = earTraining.streak; etSave(); }
             } else {
-                resultElement.innerHTML = `❌ 不正解。正解は ${currentEarTrainingChord}`;
-                resultElement.style.color = 'var(--accent-color)';
+                earTraining.streak = 0;
             }
-            
-            // 正解音を再生
-            setTimeout(() => {
-                const [key, type] = parseChordName(currentEarTrainingChord);
-                const frequencies = getChordFrequencies(key, type);
-                playAdvancedChord(frequencies, currentEarTrainingChord);
-            }, 1000);
+
+            document.querySelectorAll('#ear-training-options button').forEach(b => {
+                const opt = earTraining.options[Number(b.dataset.index)];
+                b.disabled = true;
+                if (etSame(opt, c)) b.classList.add('et-correct');
+                else if (Number(b.dataset.index) === index) b.classList.add('et-wrong');
+            });
+
+            const resultEl = document.getElementById('ear-training-result');
+            resultEl.textContent = ok ? t.correct(etFullLabel(c)) : t.wrong(etFullLabel(c));
+            resultEl.style.color = ok ? 'var(--primary-color)' : 'var(--accent-color)';
+            etRenderScore();
+
+            // 答えた後は、コード名を表示して正解の音を聞き直す（タップ処理内で同期的に再生）
+            playAdvancedChord(getChordFrequencies(c.key, c.type), etChordName(c));
+            log(`👂 聴音訓練: ${ok ? '正解' : '不正解'} (${etChordName(c)})`);
         }
 
         function parseChordName(chordName) {
@@ -3724,11 +3921,39 @@
         }
 
         function resetEarTraining() {
-            currentEarTrainingChord = null;
-            earTrainingOptions = [];
-            document.getElementById('ear-training-options').innerHTML = '';
-            document.getElementById('ear-training-result').textContent = '';
-            log('🔄 聴音訓練リセット');
+            initEarTraining();
+            earTraining.correct = 0;
+            earTraining.total = 0;
+            earTraining.streak = 0;
+            etClearQuestion();
+            etRenderScore();
+            log('🔄 聴音訓練の成績をリセット');
+        }
+
+        function updateEarTrainingLanguage() {
+            const t = etText();
+            const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+            set('et-title', t.title); set('et-desc', t.desc); set('et-mode-label', t.modeLabel);
+            set('et-config-summary', t.config); set('et-keys-label', t.keys); set('et-types-label', t.types);
+            set('et-play-btn', t.play); set('et-repeat-btn', t.repeat); set('et-next-btn', t.next); set('et-reset-btn', t.reset);
+            const sel = document.getElementById('et-mode');
+            if (sel) { sel.options[0].textContent = t.modeType; sel.options[1].textContent = t.modeFull; }
+            document.querySelectorAll('#ear-training-options button').forEach(b => {
+                const opt = earTraining.options[Number(b.dataset.index)];
+                if (opt) b.textContent = etOptionLabel(opt);
+            });
+            const resultEl = document.getElementById('ear-training-result');
+            if (resultEl && !earTraining.current) resultEl.textContent = t.pressPlay;
+            etRenderScore();
+        }
+
+        window.setEarTrainingMode = setEarTrainingMode;
+        window.toggleEarTrainingKey = toggleEarTrainingKey;
+        window.toggleEarTrainingType = toggleEarTrainingType;
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initEarTraining);
+        } else {
+            initEarTraining();
         }
 
         // === 統計機能 ===
