@@ -2,7 +2,7 @@
 <html lang="ja" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Ultimate Chord Training App - Complete Edition v2024.12.16.3</title>
     <style>
         :root {
@@ -519,6 +519,35 @@
             
             .slider {
                 margin-left: 4px !important;
+            }
+        }
+        /* 画面下の固定表示（ステータス・English・ログ）がコンテンツに重ならないよう余白を確保 */
+        body {
+            padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+        }
+        .played-chord {
+            bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+            max-width: calc(100% - 300px);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        #toggle-console-btn, .language-switch {
+            bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+        }
+        /* スマホ幅：ステータスをボタンの上の段に移動し、余白を広げる */
+        @media (max-width: 600px) {
+            body {
+                padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+            }
+            .played-chord {
+                bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+                max-width: calc(100% - 40px);
+                font-size: 1rem;
+                padding: 8px 14px;
+            }
+            #mobile-console {
+                bottom: calc(130px + env(safe-area-inset-bottom, 0px)) !important;
             }
         }
     </style>
