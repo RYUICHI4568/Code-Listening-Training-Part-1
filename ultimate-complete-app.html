@@ -359,7 +359,7 @@
             100% { box-shadow: 0 0 20px rgba(33, 150, 243, 0.5); }
         }
 
-っｚ        .advanced-settings {
+        .advanced-settings {
             margin-top: 30px;
             padding: 20px;
             border: 2px solid var(--border-color);
@@ -536,44 +536,108 @@
         button.chord-type:disabled { cursor: default; opacity: 0.55; }
         button.chord-type.et-correct, button.chord-type.et-correct:hover { background: var(--primary-color); border-color: var(--primary-color); color: #fff; opacity: 1; }
         button.chord-type.et-wrong, button.chord-type.et-wrong:hover { background: var(--accent-color); border-color: var(--accent-color); color: #fff; opacity: 1; }
-        /* 画面下の固定表示（ステータス・English・ログ）がコンテンツに重ならないよう余白を確保 */
+        /* 画面下の固定表示（再生中のコード名）がコンテンツに重ならないよう余白を確保 */
         body {
-            padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+            padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
         }
         .played-chord {
-            bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-            max-width: calc(100% - 300px);
+            bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+            max-width: calc(100% - 32px);
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        #toggle-console-btn, .language-switch {
-            bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+        #mobile-console {
+            bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
         }
-        /* スマホ幅：ステータスをボタンの上の段に移動し、余白を広げる */
+
+        /* ===== 見た目・使いやすさの調整（2026/10/30） ===== */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Segoe UI", "Noto Sans JP", Meiryo, sans-serif;
+            -webkit-text-size-adjust: 100%;
+        }
+        input[type="range"], input[type="checkbox"], input[type="radio"] { accent-color: var(--primary-color); }
+        :focus-visible { outline: 3px solid var(--secondary-color); outline-offset: 2px; }
+
+        /* ヘッダー */
+        .app-header {
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+            text-align: left; padding: 10px 12px !important; margin-bottom: 12px !important;
+        }
+        .app-title { min-width: 0; }
+        .app-header h1 { margin: 0 !important; font-size: clamp(0.95rem, 2.6vw, 1.3rem) !important; line-height: 1.3; }
+        .app-header p { margin: 2px 0 0 !important; font-size: 0.75rem !important; opacity: 0.7; }
+        .app-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+        .icon-btn {
+            font: inherit; font-size: 0.8rem; font-weight: 600; min-height: 40px; padding: 6px 10px;
+            border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-color);
+            color: var(--text-color); cursor: pointer; white-space: nowrap;
+        }
+        .icon-btn.theme-btn { width: 40px; padding: 0; font-size: 1.1rem; }
+
+        /* タブごとに関係ないボタンは隠す */
+        body[data-mode]:not([data-mode="random"]) #random-controls { display: none; }
+
+        /* タブ */
+        .mode-btn { min-height: 44px; }
+        .mode-btn:hover { transform: none; }
+
+        /* 再生ボタン */
+        .control-btn { border-radius: 12px; min-height: 48px; }
+        .control-btn:active { transform: scale(0.97); }
+
+        /* 選択ボタンの色を統一（選択中＝緑） */
+        .key, .scale-btn {
+            min-width: 44px !important; min-height: 40px; display: inline-flex; align-items: center; justify-content: center;
+            background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color);
+        }
+        .key.flat { background: var(--bg-color); color: var(--text-color); }
+        .key.selected, .scale-btn.selected, .chord-type.selected {
+            background: var(--primary-color) !important; border-color: var(--primary-color) !important;
+            color: #fff !important; transform: none;
+        }
+        .chord-type { min-height: 40px; display: flex; align-items: center; justify-content: center; }
+        .chord-type, .key, .scale-btn, .mode-btn, .control-btn, .icon-btn, .et-chip {
+            -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+        }
+        /* タッチ端末では「触った後に色が残る」hoverを無効化 */
+        @media (hover: none) {
+            .chord-type:hover { background: var(--card-color); color: var(--text-color); border-color: var(--border-color); }
+            .control-btn:hover { transform: none; }
+        }
+
+        /* スマホ幅 */
         @media (max-width: 600px) {
-            body {
-                padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+            .container { padding: 10px 10px !important; }
+            .app-header p { display: none; }
+            .icon-btn { font-size: 0.72rem; padding: 6px 8px; }
+            .mode-switcher {
+                display: grid !important; grid-template-columns: repeat(5, 1fr); gap: 4px !important;
             }
-            .played-chord {
-                bottom: calc(72px + env(safe-area-inset-bottom, 0px));
-                max-width: calc(100% - 40px);
-                font-size: 1rem;
-                padding: 8px 14px;
+            .mode-btn {
+                min-width: 0 !important; padding: 6px 2px !important; font-size: 0.68rem !important;
+                line-height: 1.25; border-radius: 10px !important; white-space: normal; min-height: 52px;
+                word-break: keep-all; overflow-wrap: anywhere;
             }
-            #mobile-console {
-                bottom: calc(130px + env(safe-area-inset-bottom, 0px)) !important;
-            }
+            .settings { padding: 14px !important; border-radius: 12px; }
+            .control-buttons { gap: 8px !important; }
+            .control-btn { min-width: 0; flex: 1 1 140px; padding: 12px 10px !important; font-size: 0.92rem !important; white-space: nowrap; }
         }
     </style>
 </head>
-<body>
-    <button class="theme-toggle" onclick="toggleTheme()" id="theme-toggle">🌙</button>
+<body data-mode="random">
     
     <div class="container">
-        <div class="header" style="padding: 6px; margin-bottom: 8px;">
-            <h1 id="main-title" style="font-size: clamp(0.8rem, 3vw, 1rem); margin-bottom: 2px;">🎵 Professional Chord Training Tool</h1>
-            <p id="main-subtitle" style="font-size: clamp(0.55rem, 1.5vw, 0.7rem); opacity: 0.7; margin: 0;">高度なコード理論と音響技術を組み合わせた本格的な学習環境</p>
+        <div class="header app-header">
+            <div class="app-title">
+                <h1 id="main-title">🎵 Professional Chord Training Tool</h1>
+                <p id="main-subtitle">高度なコード理論と音響技術を組み合わせた本格的な学習環境</p>
+            </div>
+            <div class="app-actions">
+                <button type="button" id="lang-switch" class="icon-btn" onclick="toggleLanguage()">🌐 English</button>
+                <button type="button" id="toggle-console-btn" class="icon-btn" onclick="toggleMobileConsole()">📋 ログ</button>
+                <button type="button" id="theme-toggle" class="icon-btn theme-btn" onclick="toggleTheme()" aria-label="ライト/ダーク切替">🌙</button>
+            </div>
         </div>
 
         <!-- iPhone対応: オーディオプレーヤー -->
@@ -599,7 +663,7 @@
         </div>
 
         <!-- メイン制御ボタン（モード切替の直下） -->
-        <div class="control-buttons" style="margin-bottom: 15px; gap: 8px;">
+        <div class="control-buttons" id="random-controls" style="margin-bottom: 15px; gap: 8px;">
             <button class="control-btn" onclick="playRandomChord()" style="padding: 10px 15px; font-size: 0.9rem;">🎵 単音再生</button>
             <button class="control-btn secondary" onclick="toggleAutoPlay()" id="auto-play-btn-main" style="padding: 10px 15px; font-size: 0.9rem;">🔄 自動再生開始</button>
             <button class="control-btn accent" onclick="testAdvancedAudio()" style="padding: 10px 15px; font-size: 0.9rem;">🔊 高品質音声テスト</button>
@@ -813,6 +877,10 @@
 
         <!-- Progression Mode Settings -->
         <div class="settings" id="progression-settings" style="padding: 15px; margin-bottom: 15px;">
+            <div class="control-buttons" id="progression-controls" style="margin: 0 0 15px; gap: 8px;">
+                <button class="control-btn" onclick="playProgression()">▶️ 進行を再生</button>
+                <button class="control-btn secondary" id="progression-auto-btn" onclick="toggleProgressionAutoPlay()">🔄 自動進行開始</button>
+            </div>
             <div class="mode-section" style="margin-bottom: 15px;">
                 <h3 style="font-size: 1rem; margin-bottom: 10px;">🎼 コード進行パターン</h3>
                 <div class="chord-types" style="gap: 4px;">
@@ -1018,13 +1086,8 @@
         
         <!-- iPhone用ログボタン -->
         <div id="mobile-console" style="display:none; position:fixed; bottom:80px; left:10px; right:10px; background:rgba(0,0,0,0.95); color:#0f0; border:2px solid #0f0; border-radius:8px; padding:10px; max-height:200px; overflow-y:auto; font-family:monospace; font-size:10px; z-index:9999; line-height:1.3;"></div>
-        <button id="toggle-console-btn" onclick="toggleMobileConsole()" style="position:fixed; bottom:20px; right:20px; padding:12px 16px; background:#FF6B35; color:#fff; border:none; border-radius:50px; font-weight:bold; z-index:10000; box-shadow:0 4px 12px rgba(0,0,0,0.3);">📋 ログ</button>
         
         
-        <!-- 言語切り替えボタン（一番下） -->
-        <div class="language-switch" style="position: fixed; bottom: 20px; left: 20px; z-index: 1000;">
-            <button id="lang-switch" onclick="toggleLanguage()" style="padding: 8px 16px; background: var(--primary-color); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">🌐 English</button>
-        </div>
     </div>
 
     <!-- iOS用 オーディオ解除オーバーレイ -->
@@ -1559,6 +1622,7 @@
                 btn.classList.remove('active');
             });
             document.getElementById(`${mode}-mode`).classList.add('active');
+            document.body.dataset.mode = mode;
             
             // 設定パネルの表示/非表示
             document.querySelectorAll('.settings').forEach(setting => {
@@ -1593,6 +1657,7 @@
                 chordProgression: '🎼 コード進行',
                 earTraining: '👂 聴音訓練',
                 advancedSettings: '⚙️ 高度な設定',
+                statistics: '📊 練習統計',
                 singlePlay: '🎵 単音再生',
                 autoPlay: '🔄 自動再生開始',
                 audioTest: '🔊 高品質音声テスト',
@@ -1627,6 +1692,7 @@
                 chordProgression: '🎼 Chord Progression',
                 earTraining: '👂 Ear Training',
                 advancedSettings: '⚙️ Advanced Settings',
+                statistics: '📊 Statistics',
                 singlePlay: '🎵 Single Play',
                 autoPlay: '🔄 Auto Play Start',
                 audioTest: '🔊 High Quality Audio Test',
@@ -1675,6 +1741,7 @@
             if (modeButtons[1]) modeButtons[1].textContent = t.chordProgression;
             if (modeButtons[2]) modeButtons[2].textContent = t.earTraining;
             if (modeButtons[3]) modeButtons[3].textContent = t.advancedSettings;
+            if (modeButtons[4]) modeButtons[4].textContent = t.statistics;
             
             // コントロールボタン
             const controlButtons = document.querySelectorAll('.control-btn');
@@ -3414,7 +3481,6 @@
 
         // === 自動再生機能 ===
         function toggleAutoPlay() {
-            alert('自動再生ボタンがクリックされました！');
             log(`🔄 toggleAutoPlay関数呼び出し`);
             const button = document.getElementById('auto-play-btn-main');
             
@@ -4165,18 +4231,7 @@
             playAdvancedChord(frequencies, testChord);
         }
         
-        // === モバイルコンソール機能 ===
-        function toggleMobileConsole() {
-            alert('ログボタンがクリックされました！');
-            const console = document.getElementById('mobile-console');
-            if (console.style.display === 'none') {
-                console.style.display = 'block';
-                log('📋 ログコンソール表示');
-            } else {
-                console.style.display = 'none';
-                log('📋 ログコンソール非表示');
-            }
-        }
+        // === モバイルコンソール機能 ===（toggleMobileConsoleは上で定義済み）
 
         // === 初期化実行 ===
         window.addEventListener('DOMContentLoaded', initializeApp);
