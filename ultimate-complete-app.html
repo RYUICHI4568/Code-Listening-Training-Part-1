@@ -1289,55 +1289,37 @@
         }
 
         // iOS/Safari/Chrome iOS 初回ジェスチャーでオーディオを解放
-        async function unlockIosAudio() {
+        function unlockIosAudio() {
             const debugInfo = document.getElementById('debug-info');
             const unlockDetail = document.getElementById('unlock-detail');
             
             try {
                 log('🔓 音声有効化開始...');
                 if (unlockDetail) unlockDetail.textContent = '⏳ 初期化中...';
-                if (debugInfo) debugInfo.textContent = 'Step 1/5: AudioContext作成中...';
+                if (debugInfo) debugInfo.textContent = 'Step 1/3: AudioContext作成...';
                 
-                // 1. AudioContext初期化とresumeを複数回試行
+                // 1. 同期的にAudioContextを初期化＋Resume（awaitやthenの待機を避ける）
                 const ctx = initAudioContext();
+                if (ctx.state === 'suspended') {
+                    // 非同期の結果を待たずに即座に次へ進む
+                    ctx.resume().catch(e => console.log(`AudioContext resumeエラー: ${e.message}`));
+                }
                 log(`📊 AudioContext初期状態: ${ctx.state}`);
                 if (debugInfo) debugInfo.textContent = `AudioContext: ${ctx.state}`;
                 
-                for (let i = 0; i < 3; i++) {
-                    if (ctx.state === 'suspended') {
-                        await ctx.resume();
-                        log(`🔄 AudioContext resume試行 ${i+1}/3: ${ctx.state}`);
-                        if (debugInfo) debugInfo.textContent = `Resume試行 ${i+1}/3: ${ctx.state}`;
-                    }
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                }
-                
-                // 2. サイレント音声を再生（Web Audio API）
-                if (debugInfo) debugInfo.textContent = 'Step 2/5: サイレント音声再生...';
+                // 2. サイレント音声を同期的に再生（Web Audio API）
+                if (debugInfo) debugInfo.textContent = 'Step 2/3: サイレント音声再生...';
                 const silent = ctx.createBufferSource();
                 silent.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
                 silent.connect(ctx.destination);
                 silent.start(0);
                 log('🔇 サイレント音声再生完了');
                 
-                // 3. TTS初期化（iOS Safari/Chrome対応）
-                if (debugInfo) debugInfo.textContent = 'Step 3/5: TTS初期化...';
-                await new Promise(resolve => setTimeout(resolve, 200));
+                // 3. 同期的にTTSを発火（iOS Safari/Chrome対応）
+                if (debugInfo) debugInfo.textContent = 'Step 3/3: TTS初期化...';
                 
-                // 音声リストを強制ロード（iPhone対応）
+                // 音声リストをすぐに取得（非同期待機は排除）
                 let voices = speechSynthesis.getVoices();
-                if (voices.length === 0) {
-                    // voiceschangedイベントを待つ
-                    await new Promise(resolve => {
-                        speechSynthesis.onvoiceschanged = () => {
-                            voices = speechSynthesis.getVoices();
-                            log(`📋 音声リストロード: ${voices.length}個`);
-                            resolve();
-                        };
-                        // タイムアウト処理
-                        setTimeout(resolve, 1000);
-                    });
-                }
                 
                 // PC向け: 好みの高品質音声をキャッシュ
                 try {
@@ -1349,45 +1331,48 @@
                     }
                 } catch (_) { /* noop */ }
 
-                const testUtterance = new SpeechSynthesisUtterance('test');
-                testUtterance.volume = 0.01;
-                testUtterance.rate = 10;
-                testUtterance.lang = 'en-US';
-                speechSynthesis.speak(testUtterance);
-                log('🗣️ TTS初期化実行');
-                
-                // 4. TTSキャンセルして準備完了
-                if (debugInfo) debugInfo.textContent = 'Step 4/5: TTS準備完了...';
-                await new Promise(resolve => setTimeout(resolve, 100));
+                // ユーザーのタップ起因の同期コンテキスト内で必ずspeak()を呼ぶ
                 speechSynthesis.cancel();
+                // 空文字列かごく短い無音でiOSのエンジンを確実に起動
+                const testUtterance = new SpeechSynthesisUtterance(' ');
+                testUtterance.volume = 0; // 無音（初期化用）
+                testUtterance.rate = 10;
                 
-                // TTSフラグを確実にリセット
-                isTTSPlaying = false;
-                ttsQueue = [];
-                log('✅ TTS準備完了（フラグリセット）');
+                // onendでキャンセルとUI更新を行うことで安全に抜ける
+                let initCompleted = false;
+                const finishInit = () => {
+                   if (initCompleted) return;
+                   initCompleted = true;
+                   speechSynthesis.cancel();
+                   isTTSPlaying = false;
+                   ttsQueue = [];
+                   log('✅ TTS準備完了（フラグリセット）');
+                   
+                   if (debugInfo) debugInfo.textContent = '✅ 音声有効化成功！';
+                   if (unlockDetail) unlockDetail.textContent = '✅ 成功！このパネルを閉じています...';
+                   
+                   setTimeout(() => {
+                       const overlay = document.getElementById('audio-unlock');
+                       if (overlay) overlay.style.display = 'none';
+                   }, 100); // UI閉じるのを早める
+                   
+                   log('✅ 音声有効化完了！（Web Audio + TTS）');
+                   updatePlayedChordLabel('🎵 音声準備OK！コードをタップしてください');
+                };
+
+                testUtterance.onend = finishInit;
+                testUtterance.onerror = finishInit;
                 
-                // 5. 最終確認
-                if (debugInfo) debugInfo.textContent = 'Step 5/5: 最終確認...';
-                await new Promise(resolve => setTimeout(resolve, 300));
+                // Safari用フェイルセーフ（onendが来ない場合でも強行突破）
+                setTimeout(finishInit, 500);
                 
-                const finalState = ctx.state;
-                log(`📊 最終AudioContext状態: ${finalState}`);
+                speechSynthesis.speak(testUtterance);
                 
-                if (finalState === 'running') {
-                    if (debugInfo) debugInfo.textContent = '✅ 音声有効化成功！';
-                    if (unlockDetail) unlockDetail.textContent = '✅ 成功！このパネルを閉じています...';
-                    
-                    setTimeout(() => {
-                        document.getElementById('audio-unlock').style.display = 'none';
-                    }, 1000);
-                    
-                    log('✅ 音声有効化完了！（Web Audio + TTS）');
-                    updatePlayedChordLabel('🎵 音声準備OK！コードをタップしてください');
-                } else {
-                    log(`⚠️ AudioContext状態が不完全: ${finalState}`);
-                    if (debugInfo) debugInfo.textContent = `⚠️ 状態: ${finalState}`;
-                    if (unlockDetail) unlockDetail.textContent = '⚠️ 初期化が不完全です。もう一度タップしてください。';
+                // iOS15+ Safari 強制発火のハック（発話直後にresumeを呼ぶ）
+                if (speechSynthesis.resume) {
+                    speechSynthesis.resume();
                 }
+                log('🗣️ TTS初期化実行');
             } catch (e) {
                 log(`❌ 音声有効化エラー: ${e.message}`);
                 log(`❌ エラースタック: ${e.stack}`);
@@ -2168,206 +2153,87 @@
                         }
                     }
                     
-                    utterance.onend = function() {
-                        log(`✅ TTS完了: ${spokenText}`);
-                        isTTSPlaying = false;
-                        // iPhone対応：タイミングを一定にする（待機時間を短縮）
-                        setTimeout(() => {
+                    log(`🗣️ TTS実行前設定完了`);
+                    
+                    // Failsafe timeout in case TTS `onend` never fires
+                    const ttsFailsafe = setTimeout(() => {
+                        if (isTTSPlaying) {
+                            log(`⚠️ TTS完了タイムアウト。強制リセットします: ${spokenText}`);
+                            isTTSPlaying = false;
+                            speechSynthesis.cancel();
                             resolve();
+                        }
+                    }, Math.max(7000, utterance.text.length * 500)); // 最小7秒
+
+                    // スマホ版の要件を満たすため、非同期待機を避け直ちに実行
+                    const executeTTS = () => {
+                        speechSynthesis.cancel();
+                        speechSynthesis.speak(utterance);
+                        log(`📱 TTS発音要求: ${spokenText}`);
+                    };
+                        
+                        utterance.onstart = function() {
+                            log(`✅ TTS発音開始確認: ${spokenText}`);
+                        };
+                        
+                        utterance.onend = function() {
+                            clearTimeout(ttsFailsafe);
+                            log(`✅ TTS完了: ${spokenText}`);
+                            isTTSPlaying = false;
+                            
                             if (ttsQueue.length > 0) {
                                 const nextChord = ttsQueue.shift();
-                                // タイミングを一定にする（即座に実行）
                                 setTimeout(() => speakChord(nextChord), 50);
                             }
-                        }, 50); // 300ms → 50msに短縮
-                    };
-                    
-                    utterance.onerror = function(e) {
-                        log(`❌ TTS エラー: ${e.error}`);
-                        log(`🔄 TTSフォールバック実行`);
+                            resolve();
+                        };
+
+                        utterance.onerror = function(e) {
+                            clearTimeout(ttsFailsafe);
+                            log(`❌ TTS エラー: ${e.error}`);
+                            log(`🔄 TTSフォールバック実行`);
+                            
+                            // フォールバック：シンプルなTTSで再試行
+                            try {
+                                const fallbackUtterance = new SpeechSynthesisUtterance(spokenText);
+                                fallbackUtterance.volume = Math.max(0.6, Math.min(0.8, masterVolume * 2.0));
+                                fallbackUtterance.rate = 0.8;
+                                fallbackUtterance.pitch = 1.0;
+                                fallbackUtterance.lang = 'en-US';
+                                
+                                fallbackUtterance.onerror = function(fallbackErr) {
+                                    log(`❌ フォールバックTTS エラー: ${fallbackErr.error}`);
+                                    isTTSPlaying = false;
+                                    resolve();
+                                };
+                                
+                                fallbackUtterance.onend = function() {
+                                    log(`🎤 フォールバックTTS完了`);
+                                    isTTSPlaying = false;
+                                    
+                                    if (ttsQueue.length > 0) {
+                                        const nextChord = ttsQueue.shift();
+                                        setTimeout(() => speakChord(nextChord), 50);
+                                    }
+                                    resolve();
+                                };
+                                
+                                speechSynthesis.speak(fallbackUtterance);
+                                log(`🔄 フォールバックTTS実行`);
+                            } catch (fallbackError) {
+                                log(`❌ フォールバックTTS 例外エラー: ${fallbackError.message}`);
+                                isTTSPlaying = false;
+                                resolve();
+                            }
+                        };
                         
-                        // フォールバック：シンプルなTTSで再試行
-                        try {
-                            const fallbackUtterance = new SpeechSynthesisUtterance(spokenText);
-                            fallbackUtterance.volume = 0.8;
-                            fallbackUtterance.rate = 0.8;
-                            fallbackUtterance.pitch = 1.0;
-                            fallbackUtterance.lang = 'en-US';
-                            
-                            fallbackUtterance.onend = function() {
-                                log(`🎤 フォールバックTTS完了`);
-                                isTTSPlaying = false;
-                                resolve();
-                                if (ttsQueue.length > 0) {
-                                    const nextChord = ttsQueue.shift();
-                                    setTimeout(() => speakChord(nextChord), 200);
-                                }
-                            };
-                            
-                            fallbackUtterance.onerror = function(e) {
-                                log(`❌ フォールバックTTS エラー: ${e.error}`);
-                                isTTSPlaying = false;
-                                resolve();
-                            };
-                            
-                            speechSynthesis.speak(fallbackUtterance);
-                            log(`🔄 フォールバックTTS実行`);
-                        } catch (fallbackError) {
-                            log(`❌ フォールバックTTS エラー: ${fallbackError.message}`);
-                            isTTSPlaying = false;
-                            resolve();
-                        }
-                    };
-                    
-                    log(`🗣️ TTS実行: speechSynthesis.speak()`);
-                    log(`🔍 utterance.text: "${utterance.text}"`);
-                    log(`🔍 utterance.volume: ${utterance.volume}`);
-                    log(`🔍 utterance.rate: ${utterance.rate}`);
-                    log(`🔍 utterance.pitch: ${utterance.pitch}`);
-                    
-                    // iPhone用TTS修正：確実に発音される方法（特に最初の数回）
-                    if (isIOS) {
-                        // iPhone用：確実にTTSを実行（特に最初の数回）
-                        try {
-                            // TTS実行回数をカウント（最初の数回を特別扱い）
-                            if (!window.ttsExecutionCount) {
-                                window.ttsExecutionCount = 0;
-                            }
-                            window.ttsExecutionCount++;
-                            const isFirstFew = window.ttsExecutionCount <= 5; // 最初の5回に拡大
-                            
-                            // 既存のTTSをキャンセル
-                            if (speechSynthesis.speaking) {
-                                speechSynthesis.cancel();
-                            }
-                            
-                            // iPhone TTS完全安定化：確実に発動する方法（根本的改善）
-                            let ttsStarted = false; // 発音開始フラグ
-                            
-                            // シンプルで確実な方法：複雑な再試行ロジックを削除
-                            const executeTTS = () => {
-                                try {
-                                    // 既存のTTSを確実にキャンセル
-                                    speechSynthesis.cancel();
-                                    
-                                    // 短い待機時間で即座に実行（発動しない問題を解決）
-                                    setTimeout(() => {
-                                        try {
-                                            // TTSを実行（即座に実行）
-                                            speechSynthesis.speak(utterance);
-                                            log(`📱 iPhone TTS発音開始: ${spokenText} (実行回数: ${window.ttsExecutionCount})`);
-                                        } catch (error) {
-                                            log(`❌ iPhone TTS実行エラー: ${error.message}`);
-                                            isTTSPlaying = false;
-                                            resolve();
-                                        }
-                                    }, 100); // 短い待機時間
-                                } catch (error) {
-                                    log(`❌ iPhone TTS実行エラー: ${error.message}`);
-                                    isTTSPlaying = false;
-                                    resolve();
-                                }
-                            };
-                            
-                            // イベントハンドラーを設定
-                            utterance.onstart = function() {
-                                ttsStarted = true;
-                                log(`✅ iPhone TTS発音開始確認: ${spokenText}`);
-                            };
-                            
-                            utterance.onend = function() {
-                                log(`✅ iPhone TTS完了: ${spokenText}`);
-                                isTTSPlaying = false;
-                                setTimeout(() => {
-                                    resolve();
-                                    if (ttsQueue.length > 0) {
-                                        const nextChord = ttsQueue.shift();
-                                        setTimeout(() => speakChord(nextChord), 50);
-                                    }
-                                }, 50);
-                            };
-                            
-                            utterance.onerror = function(e) {
-                                log(`❌ iPhone TTSエラー: ${e.error} - ${spokenText}`);
-                                isTTSPlaying = false;
-                                resolve();
-                            };
-                            
-                            // 実行開始
-                            executeTTS();
-                        } catch (error) {
-                            log(`❌ iPhone TTS実行エラー: ${error.message}`);
-                            isTTSPlaying = false;
-                            resolve();
-                        }
-                    } else {
-                        // PC用：既存のTTSをキャンセルしてから実行（Mac対応改善、完全安定化）
-                        try {
-                            let ttsStarted = false; // 発音開始フラグ
-                            
-                            // シンプルで確実な方法：複雑な再試行ロジックを削除
-                            const executeTTS = () => {
-                                try {
-                                    // 既存のTTSを確実にキャンセル
-                                    speechSynthesis.cancel();
-                                    
-                                    // 短い待機時間で即座に実行（発動しない問題を解決）
-                                    setTimeout(() => {
-                                        try {
-                                            // TTSを実行（即座に実行）
-                                            speechSynthesis.speak(utterance);
-                                            log(`✅ PC TTS発音開始: ${spokenText}`);
-                                        } catch (error) {
-                                            log(`❌ PC TTS実行エラー: ${error.message}`);
-                                            isTTSPlaying = false;
-                                            resolve();
-                                        }
-                                    }, 100); // 短い待機時間
-                                } catch (error) {
-                                    log(`❌ PC TTS実行エラー: ${error.message}`);
-                                    isTTSPlaying = false;
-                                    resolve();
-                                }
-                            };
-                            
-                            // イベントハンドラーを設定
-                            utterance.onstart = function() {
-                                ttsStarted = true;
-                                log(`✅ PC TTS発音開始確認: ${spokenText}`);
-                            };
-                            
-                            utterance.onend = function() {
-                                log(`✅ PC TTS完了: ${spokenText}`);
-                                isTTSPlaying = false;
-                                setTimeout(() => {
-                                    resolve();
-                                    if (ttsQueue.length > 0) {
-                                        const nextChord = ttsQueue.shift();
-                                        setTimeout(() => speakChord(nextChord), 50);
-                                    }
-                                }, 50);
-                            };
-                            
-                            utterance.onerror = function(e) {
-                                log(`❌ PC TTSエラー: ${e.error} - ${spokenText}`);
-                                isTTSPlaying = false;
-                                resolve();
-                            };
-                            
-                            // 実行開始
-                            executeTTS();
-                        } catch (error) {
-                            log(`❌ PC TTS実行エラー: ${error.message}`);
-                            isTTSPlaying = false;
-                            resolve();
-                        }
+                        executeTTS();
+                    } catch (error) {
+                        clearTimeout(ttsFailsafe);
+                        log(`❌ TTS実行例外エラー: ${error.message}`);
+                        isTTSPlaying = false;
+                        resolve();
                     }
-                    
-                } catch (error) {
-                    log(`❌ TTS エラー: ${error.message}`);
-                    isTTSPlaying = false;
-                    resolve();
-                }
             });
         }
 
