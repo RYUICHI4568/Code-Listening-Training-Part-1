@@ -835,6 +835,10 @@
                         <input type="range" class="slider" min="1" max="100" value="50" onchange="setVolume(this.value)" style="flex: 2; margin-left: 8px;">
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <label style="font-size: 0.75rem; flex: 1;">🎹オクターブ</label>
+                        <select class="octave-select" onchange="setOctaveMode(this.value)" style="flex: 2; margin-left: 8px;"><option value="low">低</option><option value="mid" selected>中</option><option value="high">高</option><option value="auto">自動（ランダム）</option></select>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
                         <label style="font-size: 0.75rem; flex: 1;" for="tempo-slider">🥁BPM</label>
                         <span class="tempo-value" style="font-size: 0.75rem; min-width: 40px; text-align: right;">60</span>
                         <input type="range" class="slider tempo-slider" id="tempo-slider" min="30" max="200" step="1" value="60" oninput="setTempo(this.value)" style="flex: 2; margin-left: 8px;">
@@ -858,6 +862,10 @@
                 <label for="tempo-slider-progression" style="font-size: 0.9rem; font-weight: 700;">🥁 BPM</label>
                 <input type="range" class="slider tempo-slider" id="tempo-slider-progression" min="30" max="200" step="1" value="60" oninput="setTempo(this.value)" style="flex: 1;">
                 <span class="tempo-value" style="font-size: 0.9rem; font-weight: 700; min-width: 2.5em; text-align: right;">60</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px; max-width: 480px; margin: 0 auto 15px;">
+                <label style="font-size: 0.9rem; font-weight: 700;">🎹 オクターブ</label>
+                <select class="octave-select" onchange="setOctaveMode(this.value)" style="flex: 1;"><option value="low">低</option><option value="mid" selected>中</option><option value="high">高</option><option value="auto">自動（ランダム）</option></select>
             </div>
             <div class="mode-section" style="margin-bottom: 15px;">
                 <h3 style="font-size: 1rem; margin-bottom: 10px;">🎼 コード進行パターン</h3>
@@ -911,6 +919,11 @@
                         <option value="type">コードの種類だけ当てる（おすすめ）</option>
                         <option value="full">キー＋種類を当てる</option>
                     </select>
+                </div>
+
+                <div class="et-row">
+                    <span class="et-label">オクターブ</span>
+                    <select class="octave-select" onchange="setOctaveMode(this.value)"><option value="low">低</option><option value="mid" selected>中</option><option value="high">高</option><option value="auto">自動（ランダム）</option></select>
                 </div>
 
                 <details class="et-config">
@@ -1097,6 +1110,8 @@
         let arpeggioSpeed = 0.25; // アルペジオの音間隔（0.25拍）
         let tempo = 60; // BPM。下の時間はすべて setTempo で決まる
         let tempoRestartTimer = null;
+        let octaveMode = 'mid'; // 'low' | 'mid' | 'high' | 'auto'
+        let lastAutoOctave = null;
         let repeatMode = 'none'; // 'none', '2x', '3x'
         let progressionInterval = 0; // コードは2拍ごとに切れ目なく進む
         let progressionTTSDelay = 1.0; // 1拍
@@ -1857,6 +1872,21 @@
             log(`🎯 ルート音強調: ${value}%`);
         }
 
+        function setOctaveMode(value) {
+            octaveMode = value;
+            lastAutoOctave = null;
+            document.querySelectorAll('.octave-select').forEach(el => { el.value = value; });
+            log(`🎹 オクターブ: ${value}`);
+        }
+
+        // 今回鳴らすオクターブ（-1, 0, +1）。自動のときは同じ高さが続かないようにする
+        function pickOctaveShift() {
+            if (octaveMode !== 'auto') return { low: -1, mid: 0, high: 1 }[octaveMode];
+            const choices = [-1, 0, 1].filter(shift => shift !== lastAutoOctave);
+            lastAutoOctave = choices[Math.floor(Math.random() * choices.length)];
+            return lastAutoOctave;
+        }
+
         function setTempo(value) {
             tempo = parseInt(value);
             const beat = 60 / tempo;
@@ -2479,8 +2509,8 @@
         }
 
         // === 音声生成（高品質版） ===
-        function getChordFrequencies(rootNote, chordType) {
-            const rootFreq = noteFrequencies[rootNote];
+        function getChordFrequencies(rootNote, chordType, octaveShift = 0) {
+            const rootFreq = noteFrequencies[rootNote] * Math.pow(2, octaveShift);
             const intervals = extendedChordLibrary[chordType] || [0, 4, 7];
             
             return intervals.map(interval => {
@@ -2776,6 +2806,8 @@
                 return;
             }
             
+            const octaveShift = pickOctaveShift(); // 1回のスケールの中では同じ高さ
+            
             // スケールの各音を順番に再生
             for (let i = 0; i < pattern.length; i++) {
                 const semitoneOffset = pattern[i];
@@ -2785,7 +2817,7 @@
                 const noteName = noteOrder[noteIndex];
                 
                 // 基本周波数からオクターブ分を計算
-                let frequency = noteFrequencies[noteName];
+                let frequency = noteFrequencies[noteName] * Math.pow(2, octaveShift);
                 if (octave > 0) {
                     frequency = frequency * Math.pow(2, octave);
                 }
@@ -3121,7 +3153,7 @@
             log(`🎲 ランダム選択: ${chordName}`);
             updatePlayedChordLabel(chordName);
             
-            const frequencies = getChordFrequencies(randomKey, randomType);
+            const frequencies = getChordFrequencies(randomKey, randomType, pickOctaveShift());
             
             try {
                 lastPlayedChord = chordName; // 選択したコードを記録
@@ -3285,10 +3317,11 @@
 
             try {
                 const chords = progression.chords.map(degree => getProgressionChord(key, transposedScale, degree));
+                const octaveShift = pickOctaveShift(); // 1回の進行の中では同じ高さ
 
                 // 進行の再生（音声のみ、TTSなし）
                 for (const chord of chords) {
-                    await playProgressionChordOnly(getChordFrequencies(chord.root, chord.type), chord.name);
+                    await playProgressionChordOnly(getChordFrequencies(chord.root, chord.type, octaveShift), chord.name);
                     if (token !== playbackToken) return;
                     await wait(progressionInterval);
                     if (token !== playbackToken) return;
@@ -3671,6 +3704,7 @@
                 next = { key: etPick(earTraining.keys), type: etPick(earTraining.types) };
                 tries++;
             } while (earTraining.current && etSame(next, earTraining.current) && tries < 20);
+            next.octaveShift = pickOctaveShift(); // 「もう一度」や答えの後も同じ高さで鳴らす
             earTraining.current = next;
             earTraining.answered = false;
             earTraining.options = etBuildOptions(next);
@@ -3689,14 +3723,14 @@
 
             resultEl.textContent = t.ask;
             // タップ処理の中で同期的に再生（iPhone対策）。出題中はコード名を出さない
-            playAdvancedChord(getChordFrequencies(next.key, next.type), etChordName(next), { hideName: true });
+            playAdvancedChord(getChordFrequencies(next.key, next.type, next.octaveShift), etChordName(next), { hideName: true });
             log(`👂 聴音訓練: 出題 (${earTraining.mode})`);
         }
 
         function repeatEarTrainingChord() {
             const c = earTraining.current;
             if (!c) { playEarTrainingChord(); return; }
-            playAdvancedChord(getChordFrequencies(c.key, c.type), etChordName(c), { hideName: !earTraining.answered });
+            playAdvancedChord(getChordFrequencies(c.key, c.type, c.octaveShift), etChordName(c), { hideName: !earTraining.answered });
         }
 
         function checkEarTrainingAnswer(index) {
@@ -3729,7 +3763,7 @@
             etRenderScore();
 
             // 答えた後は、コード名を表示して正解の音を聞き直す（タップ処理内で同期的に再生）
-            playAdvancedChord(getChordFrequencies(c.key, c.type), etChordName(c));
+            playAdvancedChord(getChordFrequencies(c.key, c.type, c.octaveShift), etChordName(c));
             log(`👂 聴音訓練: ${ok ? '正解' : '不正解'} (${etChordName(c)})`);
         }
 
@@ -4039,6 +4073,7 @@
         window.setWaveform = setWaveform;
         window.setRootEmphasis = setRootEmphasis;
         window.setTempo = setTempo;
+        window.setOctaveMode = setOctaveMode;
         window.toggleArpeggio = toggleArpeggio;
         window.toggleRootEmphasis = toggleRootEmphasis;
         window.setTTSTiming = setTTSTiming;
