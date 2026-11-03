@@ -641,7 +641,6 @@
         </div>
 
         <!-- iPhone対応: オーディオプレーヤー -->
-        <audio id="chordPlayer" style="display: none;"></audio>
 
         <!-- Mode Switcher -->
         <div class="mode-switcher" style="gap: 8px; margin-bottom: 15px;">
@@ -1213,7 +1212,7 @@
             'C': 261.63, 'Db': 277.18, 'D': 293.66, 'Eb': 311.13,
             'E': 329.63, 'F': 349.23, 'Gb': 369.99, 'G': 392.00,
             'Ab': 415.30, 'A': 440.00, 'Bb': 466.16, 'B': 493.88,
-            'C#': 277.18, 'D#': 311.13, 'F#': 369.99, 'G#': 415.30, 'A#': 466.16
+            'C#': 277.18, 'D#': 311.13, 'F#': 369.99, 'G#': 415.30, 'A#': 466.16, 'Cb': 246.94
         };
 
         // === スケールパターン定義（半音でのインターバル） ===
@@ -1609,11 +1608,9 @@
                 currentPlayingMode = null;
                 isProgressionPlaying = false;
             }
-            // TTS関連もクリア
-            speechSynthesis.cancel();
-            isTTSPlaying = false;
-            ttsQueue = [];
-            
+            // 鳴っている音と読み上げも止める
+            stopAllPlayback();
+
             currentMode = mode;
             log(`🔄 モード切り替え: ${mode}`);
             
@@ -2131,7 +2128,13 @@
                         'Eb': 'E flat',
                         'Gb': 'G flat',
                         'Ab': 'A flat',  // "Ei flat" → "A flat"に戻す
-                        'Bb': 'B flat'
+                        'Bb': 'B flat',
+                        'Cb': 'C flat',
+                        'C#': 'C sharp',
+                        'D#': 'D sharp',
+                        'F#': 'F sharp',
+                        'G#': 'G sharp',
+                        'A#': 'A sharp'
                     };
                     const typeSpeech = {
                         '': ' major',
@@ -2321,6 +2324,11 @@
 
                         utterance.onerror = function(e) {
                             clearTimeout(ttsFailsafe);
+                            // こちらから止めたときは喋り直さない
+                            if (e.error === 'canceled' || e.error === 'interrupted') {
+                                resolve();
+                                return;
+                            }
                             log(`❌ TTS エラー: ${e.error}`);
                             log(`🔄 TTSフォールバック実行`);
                             
@@ -2562,10 +2570,69 @@
             });
         }
 
+        // === コード音の再生（Web Audio） ===
+        // <audio> + Blob は Chrome で読み込み中のまま固まり、音が出ないことがあるので使わない
+        let activeChordSound = null;
+        let activeProgressionOscillators = [];
+        let playbackToken = 0; // 止めるたびに増やす。待機中の処理はこれで打ち切る
+
+        function stopChordSound() {
+            if (!activeChordSound) return;
+            const sound = activeChordSound;
+            activeChordSound = null;
+            sound.source.onended = null;
+            try { sound.source.stop(); } catch (_) { /* noop */ }
+            sound.source.disconnect();
+            sound.gain.disconnect();
+            if (sound.onStopped) sound.onStopped();
+        }
+
+        function stopAllPlayback() {
+            playbackToken++;
+            stopChordSound();
+            activeProgressionOscillators.forEach(osc => {
+                try { osc.stop(); } catch (_) { /* noop */ }
+            });
+            activeProgressionOscillators = [];
+            speechSynthesis.cancel();
+            isTTSPlaying = false;
+            ttsQueue = [];
+            currentPlayingMode = null;
+            isProgressionPlaying = false;
+        }
+
+        // タップの処理の中から同期的に呼べる（decodeAudioData のような待ちがない）
+        function playWavBuffer(wavBuffer, onEnded, onStopped) {
+            stopChordSound();
+            const ctx = initAudioContext();
+            const samples = new Int16Array(wavBuffer, 44);
+            const buffer = ctx.createBuffer(1, samples.length, 44100);
+            const channel = buffer.getChannelData(0);
+            for (let i = 0; i < samples.length; i++) {
+                channel[i] = samples[i] / 0x8000;
+            }
+            const source = ctx.createBufferSource();
+            const gain = ctx.createGain();
+            source.buffer = buffer;
+            gain.gain.value = masterVolume * 2; // 初期値の50%で今までと同じ音量
+            source.connect(gain);
+            gain.connect(ctx.destination);
+            const sound = { source, gain, onStopped };
+            activeChordSound = sound;
+            source.onended = () => {
+                if (activeChordSound === sound) activeChordSound = null;
+                source.disconnect();
+                gain.disconnect();
+                if (onEnded) onEnded();
+            };
+            source.start();
+        }
+
         function playAdvancedChord(frequencies, chordName, opts = {}) {
             // opts.hideName: true のとき（聴音訓練の出題中）はコード名を表示も読み上げもしない
             const hideName = opts.hideName === true;
             const speakOrSkip = hideName ? () => Promise.resolve() : speakChord;
+            const token = playbackToken;
             try {
                 log(`🎵 高品質再生開始: ${chordName}`);
                 updatePlayedChordLabel(hideName ? '🎧 ？' : chordName);
@@ -2580,20 +2647,10 @@
                     return;
                 }
                 
-                const blob = new Blob([wavBuffer], { type: 'audio/wav' });
-                const url = URL.createObjectURL(blob);
-                
-                // audioタグで再生（シンプルな方法に戻す - PCバグ修正）
-                const audio = document.getElementById('chordPlayer');
-                audio.src = url;
-                // iPhone対応：audioタグの音量を完全に固定値で一定に保つ（トレモロ防止）
-                audio.volume = 1.0; // 完全固定値で一定に保つ
-                
                 // 循環サイクル改善：再生開始時刻を記録
                 const chordStartTime = Date.now();
-                
-                audio.onended = function() {
-                    URL.revokeObjectURL(url);
+
+                playWavBuffer(wavBuffer, function() {
                     const chordElapsed = Date.now() - chordStartTime;
                     log(`✅ コード音再生完了: ${chordName} (経過時間: ${chordElapsed}ms)`);
                     
@@ -2615,10 +2672,11 @@
                             
                             // 循環サイクル完全安定化：より正確なタイミング制御（根本的改善）
                             const scheduleTTS = () => {
+                                if (token !== playbackToken) return;
                                 const now = Date.now();
                                 const elapsed = now - arpeggioStartTime;
                                 const remaining = exactTime - elapsed;
-                                
+
                                 if (remaining <= 5) {
                                     // 5ms以下残っている場合は即座に実行
                                     const error = elapsed - exactTime;
@@ -2650,16 +2708,6 @@
                             playArpeggio(frequencies);
                         }
                     }
-                };
-                
-                audio.onerror = function(e) {
-                    log(`❌ 再生エラー: ${audio.error ? audio.error.message : 'Unknown'}`);
-                    URL.revokeObjectURL(url);
-                };
-                
-                // シンプルな再生方法（PCバグ修正のため）
-                audio.play().catch(err => {
-                    log(`❌ play()エラー: ${err.message}`);
                 });
                 
                 log(`✅ コード音再生開始（${frequencies.length}音）`);
@@ -2679,26 +2727,18 @@
                 log(`🎵 進行コード再生: ${chordName}`);
                 updatePlayedChordLabel(chordName);
                 
-                // 音数に応じた音量調整
+                // 単音コードと同じ音量にそろえる
                 const noteCount = frequencies.length;
-                let volumeReduction = 1.0;
-                if (noteCount >= 4) {
-                    volumeReduction = 0.15;
-                } else if (noteCount >= 3) {
-                    volumeReduction = 0.2;
-                } else if (noteCount >= 2) {
-                    volumeReduction = 0.3;
-                }
-                
+
                 const promises = frequencies.map((freq, index) => {
                     return new Promise((resolve) => {
                         const oscillator = ctx.createOscillator();
                         const gainNode = ctx.createGain();
-                        
+
                         oscillator.frequency.setValueAtTime(freq, ctx.currentTime);
                         oscillator.type = waveformType;
-                        
-                        let volume = Math.min(masterVolume, 0.6) * volumeReduction * 0.5;
+
+                        let volume = (0.3 / noteCount) * masterVolume * 2;
                         
                         if (enableRootEmphasisMode && index === 0) {
                             volume *= (1 + rootEmphasis);
@@ -2716,10 +2756,12 @@
                         oscillator.stop(ctx.currentTime + chordDuration);
                         
                         oscillator.onended = resolve;
+                        activeProgressionOscillators.push(oscillator);
                     });
                 });
-                
+
                 await Promise.all(promises);
+                activeProgressionOscillators = [];
                 
             } catch (error) {
                 log(`❌ 進行コード再生エラー: ${error.message}`);
@@ -2744,33 +2786,11 @@
                         return;
                     }
                     
-                    const blob = new Blob([wavBuffer], { type: 'audio/wav' });
-                    const url = URL.createObjectURL(blob);
-                    
-                    // audioタグで再生（シンプルな方法に戻す - PCバグ修正）
-                    const audio = document.getElementById('chordPlayer');
-                    audio.src = url;
-                    // iPhone対応：audioタグの音量を完全に固定値で一定に保つ（トレモロ防止）
-                    audio.volume = 1.0; // 完全固定値で一定に保つ
-                    
-                    audio.onended = function() {
-                        URL.revokeObjectURL(url);
+                    playWavBuffer(wavBuffer, function() {
                         log(`✅ 単音コード再生完了`);
                         // iPhone対応：タイミングを一定にする（即座にresolve）
                         resolve();
-                    };
-                    
-                    audio.onerror = function(e) {
-                        log(`❌ 再生エラー: ${audio.error ? audio.error.message : 'Unknown'}`);
-                        URL.revokeObjectURL(url);
-                        reject(e);
-                    };
-                    
-                    // シンプルな再生方法（PCバグ修正のため）
-                    audio.play().catch(err => {
-                        log(`❌ play()エラー: ${err.message}`);
-                        reject(err);
-                    });
+                    }, resolve);
                     
                     log(`✅ 単音コード再生開始（${frequencies.length}音）`);
                     
@@ -2787,28 +2807,8 @@
                 
                 // WAV音声を生成
                 const wavBuffer = generateArpeggioWAV(frequencies);
-                const blob = new Blob([wavBuffer], { type: 'audio/wav' });
-                const url = URL.createObjectURL(blob);
-                
-                // audioタグで再生（シンプルな方法に戻す - PCバグ修正）
-                const audio = document.getElementById('chordPlayer');
-                audio.src = url;
-                // iPhone対応：audioタグの音量を完全に固定値で一定に保つ（トレモロ防止）
-                audio.volume = 1.0; // 完全固定値で一定に保つ
-                
-                audio.onended = function() {
-                    URL.revokeObjectURL(url);
+                playWavBuffer(wavBuffer, function() {
                     log(`✅ アルペジオ再生完了`);
-                };
-                
-                audio.onerror = function(e) {
-                    log(`❌ アルペジオエラー: ${audio.error ? audio.error.message : 'Unknown'}`);
-                    URL.revokeObjectURL(url);
-                };
-                
-                // シンプルな再生方法（PCバグ修正のため）
-                audio.play().catch(err => {
-                    log(`❌ アルペジオplay()エラー: ${err.message}`);
                 });
                 
             } catch (error) {
@@ -3137,7 +3137,10 @@
             }
             
             log(`✅ playRandomChord条件チェック完了: selectedKeys=${selectedKeys.length}, selectedScales=${selectedScales.length}`);
-            
+
+            // 前の音と読み上げが残っていたら止めてから鳴らす
+            stopAllPlayback();
+            const token = playbackToken;
             currentPlayingMode = 'random';
             
             // 使用するコードタイプを決定（選択されていない場合は全て使用）
@@ -3226,21 +3229,28 @@
                         // コード前読み上げ: TTS発音減衰完了 → 音のみN回（最後の音の減衰完了後にアルペジオ）
                         await speakChord(chordName); // TTS完了+減衰時間を含む完全待機
                         for (let i = 0; i < repeatCount; i++) {
+                            if (token !== playbackToken) return;
                             await playSingleChordAudioOnly(frequencies, chordName);
                         }
+                        if (token !== playbackToken) return;
                         // 最後の音の減衰完了後にアルペジオ
                         if (enableArpeggio) {
-                            setTimeout(() => playArpeggio(frequencies), arpeggioDelay * 1000);
+                            setTimeout(() => {
+                                if (token === playbackToken) playArpeggio(frequencies);
+                            }, arpeggioDelay * 1000);
                         }
                     } else {
                         // コード後読み上げ: 音のみ(N-1)回 → 最後の1回でTTS+アルペジオ
                         for (let i = 0; i < repeatCount - 1; i++) {
+                            if (token !== playbackToken) return;
                             await playSingleChordAudioOnly(frequencies, chordName);
                         }
-                        
+                        if (token !== playbackToken) return;
+
                         // 最後の1回は音のみ再生してからTTS+アルペジオを別途実行
                         await playSingleChordAudioOnly(frequencies, chordName);
-                        
+                        if (token !== playbackToken) return;
+
                         // TTS+アルペジオを実行
                         if (enableArpeggio) {
                             const arpeggioStartTime = Date.now();
@@ -3253,10 +3263,11 @@
                             // タイミングを一定にする（正確な時間で実行、循環サイクル完全安定化）
                             // より正確な方法（根本的改善）
                             const scheduleTTS = () => {
+                                if (token !== playbackToken) return;
                                 const now = Date.now();
                                 const elapsed = now - arpeggioStartTime;
                                 const remaining = exactTime - elapsed;
-                                
+
                                 if (remaining <= 5) {
                                     // 5ms以下残っている場合は即座に実行
                                     const error = elapsed - exactTime;
@@ -3280,10 +3291,13 @@
                         // コード前読み上げ: TTS完了+減衰 → 音1回のみ → アルペジオ
                         log(`📱 コード前TTSモード: TTS→コード音`);
                         await speakChord(chordName);
+                        if (token !== playbackToken) return;
                         log(`✅ TTS完了、コード音再生開始`);
                         playSingleChordAudioOnly(frequencies, chordName); // awaitを削除（同期実行）
                         if (enableArpeggio) {
-                            setTimeout(() => playArpeggio(frequencies), arpeggioDelay * 1000);
+                            setTimeout(() => {
+                                if (token === playbackToken) playArpeggio(frequencies);
+                            }, arpeggioDelay * 1000);
                         }
                     } else {
                         // コード後読み上げ: 従来通り
@@ -3293,8 +3307,16 @@
                 }
             } finally {
                 log(`✅ playRandomChord完了、currentPlayingModeをリセット`);
-                currentPlayingMode = null;
+                if (token === playbackToken) currentPlayingMode = null;
             }
+        }
+
+        // 度数（0〜6）からコードを決める。6番は♭VII（モーダル系のパターンで使用）
+        const PROGRESSION_QUALITY = ['', 'm', 'm', '', '', 'm', ''];
+        function getProgressionChord(key, scale, degree) {
+            const index = degree % 7;
+            const root = index === 6 ? ET_KEYS[(ET_KEYS.indexOf(key) + 10) % 12] : scale[index];
+            return { root, type: PROGRESSION_QUALITY[index], name: root + PROGRESSION_QUALITY[index] };
         }
 
         async function playProgression() {
@@ -3309,9 +3331,6 @@
                 log('❌ 進行が選択されていません');
                 return;
             }
-            
-            currentPlayingMode = 'progression';
-            isProgressionPlaying = true;
             
             const key = selectedProgressionKeys[Math.floor(Math.random() * selectedProgressionKeys.length)];
             log(`🎼 進行再生開始: ${progression.name} in ${key}`);
@@ -3338,60 +3357,45 @@
                 return;
             }
             
+            // 再生中にもう一度押されたら、前の再生を止めてやり直す
+            stopAllPlayback();
+            const token = playbackToken;
+            currentPlayingMode = 'progression';
+            isProgressionPlaying = true;
+            const wait = seconds => new Promise(resolve => setTimeout(resolve, seconds * 1000));
+
             try {
-                // 進行の再生
-                for (let i = 0; i < progression.chords.length; i++) {
-                    const degree = progression.chords[i];
-                    const chordRoot = transposedScale[degree % 7];
-                    
-                    if (!chordRoot || chordRoot === undefined) {
-                        log(`❌ コードルート未定義: degree=${degree}, scale=${transposedScale.join(',')}`);
-                        continue;
-                    }
-                    
-                    const chordName = chordRoot;
-                    const frequencies = getChordFrequencies(chordRoot, '');
-                    
-                    if (!frequencies || frequencies.length === 0) {
-                        log(`❌ 周波数未定義: ${chordName}`);
-                        continue;
-                    }
-                    
-                    // 音声のみ再生（TTSなし）
-                    await new Promise((resolve) => {
-                        setTimeout(async () => {
-                            await playProgressionChordOnly(frequencies, chordName);
-                            resolve();
-                        }, i * progressionInterval * 1000);
-                    });
-                    
-                    await new Promise(resolve => setTimeout(resolve, progressionInterval * 1000));
+                const chords = progression.chords.map(degree => getProgressionChord(key, transposedScale, degree));
+
+                // 進行の再生（音声のみ、TTSなし）
+                for (const chord of chords) {
+                    await playProgressionChordOnly(getChordFrequencies(chord.root, chord.type), chord.name);
+                    if (token !== playbackToken) return;
+                    await wait(progressionInterval);
+                    if (token !== playbackToken) return;
                 }
-                
-                // 進行の各コード名を収集
-                const chordNames = progression.chords.map(degree => {
-                    const chord = transposedScale[degree % 7];
-                    return chord || 'C'; // フォールバック
-                }).filter(chord => chord !== undefined);
-                
+
+                const chordNames = chords.map(chord => chord.name);
+
                 // 進行の各コードを統計に記録
                 chordNames.forEach(chordName => trackChordPlayed(chordName));
-                
+
                 // 進行完了後のTTS（カスタム遅延）
-                const totalProgressionTime = progression.chords.length * progressionInterval * 1000;
-                setTimeout(async () => {
-                    await speakProgressionComplete(chordNames, progression.name);
-                }, totalProgressionTime + (progressionTTSDelay * 1000)); // カスタム遅延
+                await wait(progressionTTSDelay);
+                if (token !== playbackToken) return;
+                await speakProgressionComplete(chordNames, token);
             } finally {
-                currentPlayingMode = null;
-                isProgressionPlaying = false;
+                if (token === playbackToken) {
+                    currentPlayingMode = null;
+                    isProgressionPlaying = false;
+                }
             }
         }
 
-        async function speakProgressionComplete(chordNames, progressionName) {
+        async function speakProgressionComplete(chordNames, token) {
             try {
                 if (!chordNames || chordNames.length === 0) {
-                    log(`❌ コード名配列が空: ${progressionName}`);
+                    log('❌ コード名配列が空');
                     return;
                 }
                 
@@ -3403,66 +3407,9 @@
                         continue;
                     }
                     
-                    await new Promise((resolve) => {
-                        setTimeout(async () => {
-                            await speakChord(chordName);
-                            resolve();
-                        }, i * 1000);
-                    });
+                    if (token !== playbackToken) return;
+                    await speakChord(chordName);
                 }
-                
-                // 進行名を読み上げ
-                setTimeout(async () => {
-                    if (!progressionName || progressionName.trim() === '') {
-                        log(`❌ 進行名が未定義`);
-                        return;
-                    }
-                    
-                    const message = `. ${progressionName} progression completed`;
-                    const utterance = new SpeechSynthesisUtterance(message);
-                    
-                    // PC用高品質音声設定（かすれ声を防ぐ）
-                    const ua = navigator.userAgent || '';
-                    const isIOS = /iPhone|iPad|iPod/.test(ua);
-                    const isPC = !isIOS;
-                    
-                    if (isPC) {
-                        // PC用：より自然で明るい音声設定
-                        utterance.volume = Math.min(0.95, masterVolume * 1.9); // masterVolumeに連動
-                        utterance.rate = 0.7; // 速度を遅くして明確に発音
-                        utterance.pitch = 1.2; // より高めのピッチで明るい声に
-                        log(`🎤 PC用進行完了TTS設定: volume=${utterance.volume}, rate=${utterance.rate}, pitch=${utterance.pitch}`);
-                    } else {
-                        // iOS用：従来の設定
-                        utterance.volume = Math.min(0.9, masterVolume * 1.7); // masterVolumeに連動
-                        utterance.rate = 0.65; // 速度を遅くして明確に発音
-                        utterance.pitch = 1.1;
-                        log(`🎤 iOS用進行完了TTS設定: volume=${utterance.volume}, rate=${utterance.rate}, pitch=${utterance.pitch}`);
-                    }
-                    
-                    utterance.lang = 'en-US';
-
-                    // PC用高品質音声選択
-                    if (isPC) {
-                        const voices = speechSynthesis.getVoices();
-                        if (window.preferredVoiceName) {
-                            const cached = voices.find(v => v.name === window.preferredVoiceName);
-                            if (cached) utterance.voice = cached;
-                        }
-                        if (!utterance.voice) {
-                            // より高品質な音声を優先選択
-                            const preferred = ['Samantha', 'Alex', 'Victoria', 'Daniel', 'Karen', 'Moira', 'Tessa', 'Veena', 'Rishi', 'Lekha'];
-                            const pick = voices.find(v => preferred.includes(v.name));
-                            if (pick) {
-                                utterance.voice = pick;
-                                log(`🎤 進行完了TTS音声選択: ${pick.name}`);
-                            }
-                        }
-                    }
-                    
-                    speechSynthesis.speak(utterance);
-                    log(`🎼 進行完了読み上げ: ${progressionName}`);
-                }, 2000);
                 
             } catch (error) {
                 log(`❌ 進行読み上げエラー: ${error.message}`);
@@ -3688,7 +3635,8 @@
                 autoPlayTimer = null;
                 isAutoPlayRunning = false;
                 lastAutoPlayTime = 0;
-                
+                stopAllPlayback();
+
                 const button = document.getElementById('auto-play-btn-main');
                 if (button) {
                     button.textContent = '🔄 自動再生開始';
@@ -3718,23 +3666,24 @@
         }
 
         function startProgressionAutoPlay() {
-            // 初回は実行しない（手動で呼び出された時点で既に実行される）
-            // 進行時間 + TTS遅延 + 進行間隔の合計
-            const totalTime = (progressionInterval * 4) + progressionTTSDelay + progressionGap;
-            progressionTimer = setInterval(() => {
-                if (!currentPlayingMode || currentPlayingMode === 'progression') {
-                    playProgression();
-                }
-            }, totalTime * 1000);
-            
+            // 進行が最後まで終わってから、間隔をあけて次を始める（重なり防止）
+            const runNext = async () => {
+                await playProgression();
+                if (!progressionTimer) return;
+                progressionTimer = setTimeout(runNext, progressionGap * 1000);
+            };
+            progressionTimer = true;
+            runNext();
+
             document.getElementById('progression-auto-btn').textContent = '⏹️ 自動進行停止';
-            log(`🔄 自動進行開始 (間隔: ${totalTime.toFixed(1)}秒)`);
+            log(`🔄 自動進行開始 (間隔: ${progressionGap}秒)`);
         }
 
         function stopProgressionAutoPlay() {
             if (progressionTimer) {
-                clearInterval(progressionTimer);
+                clearTimeout(progressionTimer);
                 progressionTimer = null;
+                stopAllPlayback();
                 document.getElementById('progression-auto-btn').textContent = '🔄 自動進行開始';
                 log('⏹️ 自動進行停止');
             }
@@ -4234,9 +4183,6 @@
         
         // === モバイルコンソール機能 ===（toggleMobileConsoleは上で定義済み）
 
-        // === 初期化実行 ===
-        window.addEventListener('DOMContentLoaded', initializeApp);
-        
         // シンプルなボタンクリック検出
         
         // ボタンクリックテスト用のグローバルイベントリスナー
