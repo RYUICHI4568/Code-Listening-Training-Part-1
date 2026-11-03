@@ -851,24 +851,9 @@
                         <input type="range" class="slider" min="0.1" max="0.8" step="0.05" value="0.25" onchange="setArpeggioSpeed(this.value)" style="flex: 2; margin-left: 8px;">
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <label style="font-size: 0.75rem; flex: 1;">🎯TTS⇔コード</label>
-                        <span id="unified-timing-value" style="font-size: 0.75rem; min-width: 40px; text-align: right;">0.8秒</span>
-                        <input type="range" class="slider" min="0.1" max="2.0" step="0.1" value="0.8" onchange="setUnifiedTiming(this.value)" style="flex: 2; margin-left: 8px;">
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <label style="font-size: 0.75rem; flex: 1;">⏱️コード→TTS</label>
-                        <span id="tts-delay-value" style="font-size: 0.75rem; min-width: 40px; text-align: right;">0.2秒</span>
-                        <input type="range" class="slider" min="0.1" max="2.0" step="0.1" value="0.2" onchange="setTTSDelay(this.value)" style="flex: 2; margin-left: 8px;">
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <label style="font-size: 0.75rem; flex: 1;">⚡TTS→次コード</label>
-                        <span id="continuous-interval-value" style="font-size: 0.75rem; min-width: 40px; text-align: right;">1.0秒</span>
-                        <input type="range" class="slider" min="0.1" max="2.0" step="0.1" value="1.0" onchange="setContinuousInterval(this.value)" style="flex: 2; margin-left: 8px;">
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <label style="font-size: 0.75rem; flex: 1;">🔄次サイクル</label>
-                        <span id="cycle-gap-value" style="font-size: 0.75rem; min-width: 40px; text-align: right;">0.5秒</span>
-                        <input type="range" class="slider" min="0" max="2.0" step="0.1" value="0.5" onchange="setCycleGap(this.value)" style="flex: 2; margin-left: 8px;">
+                        <label style="font-size: 0.75rem; flex: 1;" title="自動再生の速さ。コード2拍＋読み上げ2拍で1サイクル">🥁自動再生BPM</label>
+                        <span id="cycle-bpm-value" style="font-size: 0.75rem; min-width: 40px; text-align: right;">60</span>
+                        <input type="range" class="slider" min="30" max="120" step="1" value="60" oninput="setCycleBpm(this.value)" style="flex: 2; margin-left: 8px;">
                     </div>
                 </div>
             </div>
@@ -1116,10 +1101,8 @@
         let enableTranspositionMode = false;
         let arpeggioDelay = 0.3;
         let arpeggioSpeed = 0.25; // アルペジオの音間隔（秒）
-        let continuousInterval = 1.0;
-        let cycleGap = 0.5; // 1サイクル完了から次サイクルまでの待機
+        let cycleBpm = 60; // 自動再生のテンポ（コード2拍＋読み上げ2拍で1サイクル）
         let repeatMode = 'none'; // 'none', '2x', '3x'
-        let ttsDelay = 0.2;
         let progressionInterval = 1.0;
         let progressionTTSDelay = 0.5;
         let progressionGap = 0.8;
@@ -1141,8 +1124,8 @@
         let isPlaying = false;
         let isProgressionPlaying = false;
         let currentPlayingMode = null; // 'random', 'progression', null
-        let isAutoPlayRunning = false; // 自動再生実行中フラグ（グローバル変数）
-        let lastAutoPlayTime = 0; // 最後の自動再生時刻（グローバル変数）
+        let autoCycleTimeout = null;
+        let playbackStepPending = false; // アルペジオや読み上げの開始待ち
 
         // オーディオコンテキスト
         let audioContext = null;
@@ -1903,35 +1886,10 @@
             log(`🎵 アルペジオ速度: ${value}秒間隔`);
         }
 
-        function setContinuousInterval(value) {
-            continuousInterval = parseFloat(value);
-            document.getElementById('continuous-interval-value').textContent = `${value}秒`;
-            log(`🔄 連続再生間隔: ${value}秒`);
-        }
-
-        function setCycleGap(value) {
-            cycleGap = parseFloat(value);
-            document.getElementById('cycle-gap-value').textContent = `${value}秒`;
-            log(`🔄 次のサイクルまで: ${value}秒`);
-        }
-
-        function setUnifiedTiming(value) {
-            const unifiedValue = parseFloat(value);
-            
-            // 両方の値を同期して設定
-            ttsDelay = unifiedValue;
-            continuousInterval = unifiedValue;
-            
-            // UI更新
-            document.getElementById('unified-timing-value').textContent = `${value}秒`;
-            document.getElementById('tts-delay-value').textContent = `${value}秒`;
-            document.getElementById('continuous-interval-value').textContent = `${value}秒`;
-            
-            // スライダー値も同期
-            document.querySelector('#tts-delay-value').parentElement.querySelector('input').value = value;
-            document.querySelector('#continuous-interval-value').parentElement.querySelector('input').value = value;
-            
-            log(`🎯 TTS⇔コード一括制御: ${value}秒 (TTS遅延=${value}秒, 連続間隔=${value}秒)`);
+        function setCycleBpm(value) {
+            cycleBpm = parseInt(value);
+            document.getElementById('cycle-bpm-value').textContent = `${cycleBpm}`;
+            log(`🥁 自動再生BPM: ${cycleBpm}`);
         }
 
         function toggleArpeggio(checked) {
@@ -1957,12 +1915,6 @@
         function setRepeatMode(mode) {
             repeatMode = mode;
             log(`🔁 再生モード: ${mode === 'none' ? '1回' : mode === '2x' ? '2回' : '3回'}再生`);
-        }
-
-        function setTTSDelay(value) {
-            ttsDelay = parseFloat(value);
-            document.getElementById('tts-delay-value').textContent = `${value}秒`;
-            log(`🗣️ TTS読み上げ遅延: ${value}秒`);
         }
 
         function setProgressionInterval(value) {
@@ -2576,6 +2528,11 @@
         let activeProgressionOscillators = [];
         let playbackToken = 0; // 止めるたびに増やす。待機中の処理はこれで打ち切る
 
+        // 自動再生中はBPMの2拍分、手動のときは「コードの長さ」の設定
+        function currentChordSeconds() {
+            return autoPlayTimer ? 2 * 60 / cycleBpm : chordDuration;
+        }
+
         function stopChordSound() {
             if (!activeChordSound) return;
             const sound = activeChordSound;
@@ -2597,6 +2554,7 @@
             speechSynthesis.cancel();
             isTTSPlaying = false;
             ttsQueue = [];
+            playbackStepPending = false;
             currentPlayingMode = null;
             isProgressionPlaying = false;
         }
@@ -2640,7 +2598,7 @@
                 // WAV音声を生成（エラーハンドリング追加）
                 let wavBuffer;
                 try {
-                    wavBuffer = generateChordWAV(frequencies, chordDuration);
+                    wavBuffer = generateChordWAV(frequencies, currentChordSeconds());
                     log(`✅ WAV生成成功: ${chordName}`);
                 } catch (error) {
                     log(`❌ WAV生成エラー: ${error.message}`);
@@ -2681,6 +2639,7 @@
                                     // 5ms以下残っている場合は即座に実行
                                     const error = elapsed - exactTime;
                                     log(`⏱️ アルペジオ経過時間: ${elapsed}ms (予定: ${exactTime}ms, 誤差: ${error}ms)`);
+                                    playbackStepPending = false;
                                     speakOrSkip(chordName).catch(err => {
                                         log(`❌ TTS実行エラー: ${err.message}`);
                                     });
@@ -2691,6 +2650,7 @@
                             };
                             
                             // 最初のスケジュールを開始
+                            playbackStepPending = true;
                             setTimeout(scheduleTTS, Math.min(exactTime - 50, 50));
                         } else {
                             // アルペジオなし: コード→TTS（即座に実行、循環サイクル改善）
@@ -2778,7 +2738,7 @@
                     // WAV音声を生成（エラーハンドリング追加）
                     let wavBuffer;
                     try {
-                        wavBuffer = generateChordWAV(frequencies, chordDuration);
+                        wavBuffer = generateChordWAV(frequencies, currentChordSeconds());
                         log(`✅ WAV生成成功: ${chordName}`);
                     } catch (error) {
                         log(`❌ WAV生成エラー: ${error.message}`);
@@ -3235,8 +3195,11 @@
                         if (token !== playbackToken) return;
                         // 最後の音の減衰完了後にアルペジオ
                         if (enableArpeggio) {
+                            playbackStepPending = true;
                             setTimeout(() => {
-                                if (token === playbackToken) playArpeggio(frequencies);
+                                if (token !== playbackToken) return;
+                                playbackStepPending = false;
+                                playArpeggio(frequencies);
                             }, arpeggioDelay * 1000);
                         }
                     } else {
@@ -3272,6 +3235,7 @@
                                     // 5ms以下残っている場合は即座に実行
                                     const error = elapsed - exactTime;
                                     log(`⏱️ アルペジオ経過時間: ${elapsed}ms (予定: ${exactTime}ms, 誤差: ${error}ms)`);
+                                    playbackStepPending = false;
                                     speakChord(chordName);
                                 } else {
                                     // まだ時間が残っている場合は再スケジュール
@@ -3280,6 +3244,7 @@
                             };
                             
                             // 最初のスケジュールを開始
+                            playbackStepPending = true;
                             setTimeout(scheduleTTS, Math.min(exactTime - 50, 50));
                         } else {
                             speakChord(chordName);
@@ -3295,8 +3260,11 @@
                         log(`✅ TTS完了、コード音再生開始`);
                         playSingleChordAudioOnly(frequencies, chordName); // awaitを削除（同期実行）
                         if (enableArpeggio) {
+                            playbackStepPending = true;
                             setTimeout(() => {
-                                if (token === playbackToken) playArpeggio(frequencies);
+                                if (token !== playbackToken) return;
+                                playbackStepPending = false;
+                                playArpeggio(frequencies);
                             }, arpeggioDelay * 1000);
                         }
                     } else {
@@ -3459,13 +3427,9 @@
             // 自動再生初期化問題修正：既存のタイマーを確実にクリア
             if (autoPlayTimer) {
                 log(`🔄 既存の自動再生タイマーをクリア`);
-                clearInterval(autoPlayTimer);
+                clearTimeout(autoCycleTimeout);
                 autoPlayTimer = null;
             }
-            
-            // 自動再生初期化問題修正：状態変数をリセット（グローバル変数を使用）
-            isAutoPlayRunning = false;
-            lastAutoPlayTime = 0;
             
             // 進行モード実行中は自動再生開始不可
             if (currentPlayingMode === 'progression') {
@@ -3482,128 +3446,31 @@
             
             log(`✅ 自動再生条件チェック完了: selectedKeys=${selectedKeys.length}, selectedScales=${selectedScales.length}`);
             
-            // 使用するコードタイプを決定（選択されていない場合は全て使用）
-            const availableChordTypes = selectedChordTypes.length > 0 ? selectedChordTypes : Object.keys(extendedChordLibrary);
+            // 4拍で1サイクル。読み上げなどが終わっていなければ、終わった次の拍まで待つ
+            const CYCLE_BEATS = 4;
+            const isCycleBusy = () => activeChordSound || isTTSPlaying || speechSynthesis.speaking
+                || playbackStepPending || currentPlayingMode === 'random';
             
-            // 完全なサイクル時間を計算
-            function calculateFullCycleTime() {
-                let totalTime = 0;
-                
-                // コード再生時間（2回/3回再生考慮）
-                const repeatCount = repeatMode === 'none' ? 1 : (repeatMode === '2x' ? 2 : 3);
-                const chordTime = chordDuration * repeatCount + (repeatCount - 1) * 0.15; // 短い間隔含む
-                totalTime += chordTime;
-                
-                // アルペジオ時間（循環サイクル改善）
-                if (enableArpeggio) {
-                    totalTime += arpeggioDelay; // アルペジオ遅延
-                    // アルペジオ総時間を正確に計算（音数 + 最後の音の持続時間 + フェードアウト）
-                    // デフォルトの音数（3音）を使用して計算
-                    const defaultNoteCount = 3;
-                    const arpeggioTotal = defaultNoteCount * arpeggioSpeed + 0.4 + 0.25; // フェードアウト時間(0.25s)を追加
-                    totalTime += arpeggioTotal; // アルペジオ再生時間
-                }
-                
-                // TTS時間（コード前/後で異なる）
-                if (!ttsBeforeChord) {
-                    totalTime += ttsDelay; // TTS遅延
-                    totalTime += 1.5; // TTS再生時間（平均）
-                } else {
-                    totalTime += 1.5; // TTS再生時間（最初）
-                    totalTime += 0.3; // TTS減衰時間
-                }
-                
-                // 次のサイクルまでの間隔
-                totalTime += cycleGap;
-                
-                return totalTime;
-            }
-            
-            const fullCycleTime = calculateFullCycleTime();
-            
-            // 自動再生改善：playRandomChordが完了するまで待つ（循環サイクル改善）
-            // グローバル変数を使用（isAutoPlayRunning, lastAutoPlayTime）
-            
-            const autoPlayCycle = async () => {
-                // 自動再生が停止されている場合は何もしない
-                if (!autoPlayTimer) {
-                    log(`⏰ 自動再生が停止されているためスキップ`);
-                    return;
-                }
-                
-                const now = Date.now();
-                const timeSinceLastPlay = lastAutoPlayTime === 0 ? Infinity : (now - lastAutoPlayTime);
-                
-                if (isAutoPlayRunning) {
-                    log(`⏰ 自動再生サイクル実行中のためスキップ`);
-                    return;
-                }
-                
-                // 循環サイクル改善：最小間隔を確保（最初の実行時はスキップしない）
-                const minInterval = fullCycleTime * 1000;
-                if (lastAutoPlayTime > 0 && timeSinceLastPlay < minInterval) {
-                    log(`⏰ 最小間隔未満のためスキップ (経過: ${timeSinceLastPlay}ms, 最小: ${minInterval}ms)`);
-                    return;
-                }
-                
-                log(`⏰ 自動再生タイマー実行: isTTSPlaying=${isTTSPlaying}, currentPlayingMode=${currentPlayingMode}, isAutoPlayRunning=${isAutoPlayRunning}`);
-                
-                // TTS再生中は次サイクルをスキップして被りを防止
-                if (isTTSPlaying) {
-                    log(`⏰ TTS再生中のためスキップ`);
-                    return;
-                }
-                
-                // 自動再生改善：currentPlayingModeが'random'の場合は、playRandomChordが完了するまで待つ
-                if (currentPlayingMode === 'random') {
-                    log(`⏰ playRandomChord実行中のため待機`);
-                    // playRandomChordが完了するまで待つ（より長めに）
-                    setTimeout(() => {
-                        autoPlayCycle();
-                    }, 1000);
-                    return;
-                }
-                
-                if (currentPlayingMode !== 'progression') {
-                    log(`⏰ playRandomChord呼び出し`);
-                    isAutoPlayRunning = true;
-                    lastAutoPlayTime = Date.now();
-                    
-                    // playRandomChordを非同期で実行（完了を待たない）
-                    playRandomChord().then(() => {
-                        log(`✅ playRandomChord完了`);
-                        // playRandomChord完了後、少し待ってからisAutoPlayRunningをfalseにする
-                        setTimeout(() => {
-                            isAutoPlayRunning = false;
-                            log(`🔄 isAutoPlayRunningをfalseに設定`);
-                        }, 200);
-                    }).catch(error => {
-                        log(`❌ 自動再生エラー: ${error.message}`);
-                        isAutoPlayRunning = false;
-                    });
-                } else {
-                    log(`⏰ モード衝突のためスキップ: currentPlayingMode=${currentPlayingMode}`);
-                }
-            };
-            
-            // 自動再生改善：より確実な循環方法（根本的改善）
-            const scheduleNextCycle = () => {
-                if (!autoPlayTimer) {
-                    return; // 自動再生が停止されている場合は何もしない
-                }
-                
-                // 次のサイクルをスケジュール
-                setTimeout(() => {
-                    if (autoPlayTimer) {
-                        autoPlayCycle();
-                        scheduleNextCycle(); // 次のサイクルを再スケジュール
+            const runCycle = () => {
+                playRandomChord().catch(error => log(`❌ 自動再生エラー: ${error.message}`));
+                let beats = 0;
+                let nextBeatTime = Date.now();
+                const onBeat = () => {
+                    if (!autoPlayTimer) return;
+                    beats++;
+                    if (beats >= CYCLE_BEATS && !isCycleBusy()) {
+                        runCycle();
+                        return;
                     }
-                }, fullCycleTime * 1000);
+                    nextBeatTime += 60000 / cycleBpm;
+                    autoCycleTimeout = setTimeout(onBeat, Math.max(0, nextBeatTime - Date.now()));
+                };
+                nextBeatTime += 60000 / cycleBpm;
+                autoCycleTimeout = setTimeout(onBeat, 60000 / cycleBpm);
             };
             
             // 最初のサイクルを開始
             autoPlayTimer = true; // タイマーIDの代わりにフラグを使用
-            scheduleNextCycle();
             
             const button = document.getElementById('auto-play-btn-main');
             if (button) {
@@ -3617,13 +3484,8 @@
                 log(`🎨 ボタンクラス追加: ${button.className}`);
                 log(`🎨 ボタンスタイル強制適用: background=${button.style.background}`);
             }
-            log(`🔄 自動再生開始 (完全サイクル間隔: ${fullCycleTime.toFixed(1)}秒)`);
-            
-            // 即座にテスト再生を実行
-            log(`🎵 即座にテスト再生を実行`);
-            setTimeout(() => {
-                autoPlayCycle();
-            }, 100);
+            log(`🔄 自動再生開始 (BPM: ${cycleBpm})`);
+            runCycle();
         }
 
         function stopAutoPlay() {
@@ -3633,8 +3495,7 @@
             if (autoPlayTimer) {
                 // 自動再生を停止（フラグをnullに設定）
                 autoPlayTimer = null;
-                isAutoPlayRunning = false;
-                lastAutoPlayTime = 0;
+                clearTimeout(autoCycleTimeout);
                 stopAllPlayback();
 
                 const button = document.getElementById('auto-play-btn-main');
@@ -4229,9 +4090,7 @@
         window.setRootEmphasis = setRootEmphasis;
         window.setArpeggioDelay = setArpeggioDelay;
         window.setArpeggioSpeed = setArpeggioSpeed;
-        window.setContinuousInterval = setContinuousInterval;
-        window.setCycleGap = setCycleGap;
-        window.setUnifiedTiming = setUnifiedTiming;
+        window.setCycleBpm = setCycleBpm;
         window.toggleArpeggio = toggleArpeggio;
         window.toggleRootEmphasis = toggleRootEmphasis;
         window.setTTSTiming = setTTSTiming;
