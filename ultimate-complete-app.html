@@ -2073,19 +2073,19 @@
                         'E': 'E',
                         'F': 'F',
                         'G': 'G',
-                        'A': 'Ay',  // "A" のままだと「あー」と読まれる
+                        'A': 'Eh',  // "A" は「あー」、"Ay" は「アイ」と読まれる
                         'B': 'B',
                         'Db': 'D flat',
                         'Eb': 'E flat',
                         'Gb': 'G flat',
-                        'Ab': 'Ay flat',
+                        'Ab': 'Eh flat',
                         'Bb': 'B flat',
                         'Cb': 'C flat',
                         'C#': 'C sharp',
                         'D#': 'D sharp',
                         'F#': 'F sharp',
                         'G#': 'G sharp',
-                        'A#': 'Ay sharp'
+                        'A#': 'Eh sharp'
                     };
                     const typeSpeech = {
                         '': ' major',
@@ -2158,7 +2158,7 @@
                     log(`🔍 最終的なspokenText: "${spokenText}"`);
                     
                     // 不自然な発音を防ぐため、音名の前に短い無音を追加
-                    if (spokenText.startsWith('E')) {
+                    if (spokenText.startsWith('E') && !spokenText.startsWith('Eh')) {
                         spokenText = '. E' + spokenText.substring(1);
                     } else if (spokenText.startsWith('I')) {
                         spokenText = '. I' + spokenText.substring(1);
