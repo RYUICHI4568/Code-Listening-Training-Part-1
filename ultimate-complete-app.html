@@ -588,10 +588,6 @@
 
         /* タブごとに関係ないボタンは隠す */
         body[data-mode]:not([data-mode="random"]) #random-controls { display: none; }
-        #tempo-row { display: flex; align-items: center; gap: 12px; max-width: 480px; margin: 0 auto 12px; font-weight: 700; }
-        #tempo-row input { flex: 1; }
-        #tempo-row span { min-width: 3em; text-align: right; font-variant-numeric: tabular-nums; }
-        body[data-mode="advanced"] #tempo-row, body[data-mode="statistics"] #tempo-row { display: none; }
 
         /* タブ */
         .mode-btn { min-height: 44px; }
@@ -674,13 +670,6 @@
             <button class="mode-btn" onclick="setMode('statistics')" id="statistics-mode" style="padding: 10px 15px; font-size: 0.85rem; min-width: 100px;">
                 📊 練習統計
             </button>
-        </div>
-
-        <!-- テンポ（音に関わる時間はすべてこのBPMで決まる） -->
-        <div id="tempo-row">
-            <label for="tempo-slider">🥁 BPM</label>
-            <input type="range" class="slider" id="tempo-slider" min="30" max="200" step="1" value="60" oninput="setTempo(this.value)">
-            <span id="tempo-value">60</span>
         </div>
 
         <!-- メイン制御ボタン（モード切替の直下） -->
@@ -844,6 +833,11 @@
                         <label style="font-size: 0.75rem; flex: 1;">🔊音量</label>
                         <span id="volume-value" style="font-size: 0.75rem; min-width: 40px; text-align: right;">50%</span>
                         <input type="range" class="slider" min="1" max="100" value="50" onchange="setVolume(this.value)" style="flex: 2; margin-left: 8px;">
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <label style="font-size: 0.75rem; flex: 1;" for="tempo-slider">🥁BPM</label>
+                        <span id="tempo-value" style="font-size: 0.75rem; min-width: 40px; text-align: right;">60</span>
+                        <input type="range" class="slider" id="tempo-slider" min="30" max="200" step="1" value="60" oninput="setTempo(this.value)" style="flex: 2; margin-left: 8px;">
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <label style="font-size: 0.75rem; flex: 1;">🎯ルート強調</label>
