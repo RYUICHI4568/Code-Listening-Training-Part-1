@@ -2379,13 +2379,13 @@
                     
                     if (isPC) {
                         // PC用：より自然で明るい音声設定
-                        utterance.volume = Math.max(0.7, Math.min(0.9, masterVolume * 2.5)); // 音量を大幅に上げる
+                        utterance.volume = masterVolume; // 音量バーと同じ割合で変える（コードとの差を一定にする）
                         utterance.rate = 0.7; // 速度を遅くして明確に発音
                         utterance.pitch = 1.2; // より高めのピッチで明るい声に
                         log(`🎤 PC用高品質設定: volume=${utterance.volume}, rate=${utterance.rate}, pitch=${utterance.pitch}`);
                     } else {
                         // iOS用：従来の設定
-                        utterance.volume = Math.max(0.6, Math.min(0.8, masterVolume * 2.0)); // 音量を上げる
+                        utterance.volume = masterVolume; // 音量バーと同じ割合で変える（コードとの差を一定にする）
                         utterance.rate = 0.65; // 速度を遅くして明確に発音
                         utterance.pitch = 1.1;
                         log(`🎤 iOS用設定: volume=${utterance.volume}, rate=${utterance.rate}, pitch=${utterance.pitch}`);
@@ -2475,7 +2475,7 @@
                             // フォールバック：シンプルなTTSで再試行
                             try {
                                 const fallbackUtterance = new SpeechSynthesisUtterance(spokenText);
-                                fallbackUtterance.volume = Math.max(0.6, Math.min(0.8, masterVolume * 2.0));
+                                fallbackUtterance.volume = masterVolume;
                                 fallbackUtterance.rate = 0.8;
                                 fallbackUtterance.pitch = 1.0;
                                 fallbackUtterance.lang = 'en-US';
