@@ -836,8 +836,8 @@
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <label style="font-size: 0.75rem; flex: 1;" for="tempo-slider">🥁BPM</label>
-                        <span id="tempo-value" style="font-size: 0.75rem; min-width: 40px; text-align: right;">60</span>
-                        <input type="range" class="slider" id="tempo-slider" min="30" max="200" step="1" value="60" oninput="setTempo(this.value)" style="flex: 2; margin-left: 8px;">
+                        <span class="tempo-value" style="font-size: 0.75rem; min-width: 40px; text-align: right;">60</span>
+                        <input type="range" class="slider tempo-slider" id="tempo-slider" min="30" max="200" step="1" value="60" oninput="setTempo(this.value)" style="flex: 2; margin-left: 8px;">
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <label style="font-size: 0.75rem; flex: 1;">🎯ルート強調</label>
@@ -853,6 +853,11 @@
             <div class="control-buttons" id="progression-controls" style="margin: 0 0 15px; gap: 8px;">
                 <button class="control-btn" onclick="playProgression()">▶️ 進行を再生</button>
                 <button class="control-btn secondary" id="progression-auto-btn" onclick="toggleProgressionAutoPlay()">🔄 自動進行開始</button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px; max-width: 480px; margin: 0 auto 15px;">
+                <label for="tempo-slider-progression" style="font-size: 0.9rem; font-weight: 700;">🥁 BPM</label>
+                <input type="range" class="slider tempo-slider" id="tempo-slider-progression" min="30" max="200" step="1" value="60" oninput="setTempo(this.value)" style="flex: 1;">
+                <span class="tempo-value" style="font-size: 0.9rem; font-weight: 700; min-width: 2.5em; text-align: right;">60</span>
             </div>
             <div class="mode-section" style="margin-bottom: 15px;">
                 <h3 style="font-size: 1rem; margin-bottom: 10px;">🎼 コード進行パターン</h3>
@@ -1860,7 +1865,8 @@
             arpeggioSpeed = 0.25 * beat;
             progressionTTSDelay = beat;
             progressionGap = 2 * beat;
-            document.getElementById('tempo-value').textContent = `${tempo}`;
+            document.querySelectorAll('.tempo-value').forEach(el => { el.textContent = `${tempo}`; });
+            document.querySelectorAll('.tempo-slider').forEach(el => { el.value = tempo; });
             log(`🥁 BPM: ${tempo}`);
             
             // メトロノームが実行中の場合は再起動（スライダーを動かしている間は待つ）
