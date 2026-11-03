@@ -553,6 +553,13 @@
             padding: 6px 16px; font-size: 1.05rem;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
+        .dock-top { display: flex; align-items: center; gap: 10px; max-width: 800px; margin: 0 auto; padding: 4px 10px; }
+        .dock-top .played-chord { flex: 1 1 0; width: auto; padding: 0; }
+        .dock-bpm { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 6px; min-height: 40px; font-size: 0.8rem; font-weight: 700; }
+        .dock-bpm label { white-space: nowrap; }
+        .dock-bpm .slider { flex: 1 1 0; min-width: 0; margin: 0; }
+        .dock-bpm .tempo-value { flex: 0 0 2em; text-align: right; }
+        body[data-mode="statistics"] .dock-bpm { display: none; }
         .dock-actions { display: none; gap: 8px; max-width: 800px; margin: 0 auto; padding: 0 10px 10px; }
         .dock-actions .control-btn {
             flex: 1 1 0 !important; min-width: 0 !important; margin: 0;
@@ -793,11 +800,6 @@
         <!-- Progression Mode Settings -->
         <div class="settings" id="progression-settings" style="padding: 15px; margin-bottom: 15px;">
             <div style="display: flex; align-items: center; gap: 12px; max-width: 480px; margin: 0 auto 15px;">
-                <label for="tempo-slider-progression" style="font-size: 0.9rem; font-weight: 700;">🥁 BPM</label>
-                <input type="range" class="slider tempo-slider" id="tempo-slider-progression" min="30" max="200" step="1" value="60" oninput="setTempo(this.value)" style="flex: 1;">
-                <span class="tempo-value" style="font-size: 0.9rem; font-weight: 700; min-width: 2.5em; text-align: right;">60</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 12px; max-width: 480px; margin: 0 auto 15px;">
                 <label style="font-size: 0.9rem; font-weight: 700;">🎹 オクターブ</label>
                 <select class="octave-select" onchange="setOctaveMode(this.value)" style="flex: 1;"><option value="low">低</option><option value="mid" selected>中</option><option value="high">高</option><option value="auto">自動（ランダム）</option></select>
             </div>
@@ -858,11 +860,6 @@
                         <option value="dorian">ドリアンスケール</option>
                         <option value="mixolydian">ミクソリディアンスケール</option>
                     </select>
-                </div>
-                <div class="sheet-row">
-                    <label for="tempo-slider-scale">🥁 BPM</label>
-                    <input type="range" class="slider tempo-slider" id="tempo-slider-scale" min="30" max="200" step="1" value="60" oninput="setTempo(this.value)">
-                    <span class="tempo-value">60</span>
                 </div>
                 <div class="sheet-row">
                     <label data-i18n="octave">🎹 オクターブ</label>
@@ -965,7 +962,14 @@
 
         <!-- 画面下に固定：コード名と再生ボタン -->
         <div id="dock" class="dock">
-            <div id="played-chord" class="played-chord" role="status" aria-live="polite" style="display: block;">--</div>
+            <div class="dock-top">
+                <div id="played-chord" class="played-chord" role="status" aria-live="polite" style="display: block;">--</div>
+                <div class="dock-bpm">
+                    <label for="tempo-slider-dock">🥁 BPM</label>
+                    <input type="range" class="slider tempo-slider" id="tempo-slider-dock" min="30" max="200" step="1" value="60" oninput="setTempo(this.value)">
+                    <span class="tempo-value">60</span>
+                </div>
+            </div>
             <div class="dock-actions" id="random-controls">
                 <button class="control-btn" id="random-play-btn" data-i18n="singlePlay" onclick="playRandomChord()">🎵 再生</button>
                 <button class="control-btn secondary" onclick="toggleAutoPlay()" id="auto-play-btn-main">🔄 自動再生開始</button>
