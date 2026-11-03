@@ -2109,7 +2109,8 @@
                     // デバッグログ追加
                     log(`🔍 パース結果: rootNote="${rootNote}", chordType="${chordType}"`);
                     
-                    if (!rootNote || !chordType) {
+                    // chordType はメジャーのとき空文字なので、失敗扱いにしない
+                    if (!rootNote) {
                         log(`❌ コード名パース失敗: ${chordName}`);
                         isTTSPlaying = false;
                         resolve();
