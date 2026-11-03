@@ -563,6 +563,7 @@
         }
         .dock-chip.on { background: var(--accent-color); border-color: var(--accent-color); color: #fff; }
         body[data-mode="random"] #arpeggio-chip, body[data-mode="ear-training"] #arpeggio-chip,
+        body[data-mode="random"] #root-chip, body[data-mode="progression"] #root-chip, body[data-mode="ear-training"] #root-chip,
         body[data-mode="random"] #repeat-chip { display: inline-block; }
         .dock-sliders { display: flex; gap: 12px; max-width: 800px; margin: 0 auto; padding: 0 10px 4px; }
         .dock-slider { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 5px; min-height: 36px; font-size: 0.78rem; font-weight: 700; }
@@ -980,6 +981,7 @@
                 <div id="played-chord" class="played-chord" role="status" aria-live="polite" style="display: block;">--</div>
                 <div class="dock-chips">
                     <button type="button" class="dock-chip" id="arpeggio-chip" aria-pressed="false" onclick="toggleArpeggio(!enableArpeggio)">🎵 アルペジオ</button>
+                    <button type="button" class="dock-chip" id="root-chip" aria-pressed="false" onclick="toggleRootEmphasis(!enableRootEmphasisMode)">🎯 ルート強調</button>
                     <button type="button" class="dock-chip" id="repeat-chip" onclick="cycleRepeatMode()">🔁 1回</button>
                 </div>
             </div>
@@ -1043,6 +1045,12 @@
             <label class="sheet-check"><input type="checkbox" id="tts-before-chord" onchange="setTTSTiming(this.checked)"> <span data-i18n="ttsBeforeChord">🗣️ コードの前に読み上げる</span></label>
             <label class="sheet-check"><input type="checkbox" id="toggle-played-chord" checked onchange="togglePlayedChordVisibility(this.checked)"> <span data-i18n="displayChord">🎯 コード名を表示する</span></label>
 
+            <div class="sheet-row">
+                <label for="root-emphasis-slider" data-i18n="rootStrength">🎯 強調の強さ</label>
+                <input type="range" class="slider" id="root-emphasis-slider" min="20" max="300" step="10" value="100" oninput="setRootEmphasis(this.value)">
+                <span id="root-emphasis-value">100%</span>
+            </div>
+
             <div class="sheet-section" data-i18n="metronomeSection">メトロノーム</div>
             <div class="sheet-row">
                 <label for="tempo-slider">🥁 BPM</label>
@@ -1098,6 +1106,8 @@
         let chordDuration = 2.0; // 2拍
         let waveformType = 'sine';
         let enableArpeggio = false;
+        let enableRootEmphasisMode = false;
+        let rootEmphasis = 1.0; // 1.0 = ルートが他の音の2倍の音量
         let ttsBeforeChord = false;
         let arpeggioDelay = 0.3; // 0.3拍
         let arpeggioSpeed = 0.25; // アルペジオの音間隔（0.25拍）
@@ -1649,7 +1659,7 @@
                 timerLabel: '⏰ 自動再生の予約', timerOff: 'なし', timer5: '5分後', timer15: '15分後', timer30: '30分後', timer60: '1時間後', timer120: '2時間後',
                 timerLeft: (time) => `あと ${time}`,
                 settingsTitle: '⚙️ 設定', playSection: '再生',
-                arpeggioChip: '🎵 アルペジオ', repeatChip: (count) => `🔁 ${count}回`,
+                rootChip: '🎯 ルート強調', rootStrength: '🎯 強調の強さ', arpeggioChip: '🎵 アルペジオ', repeatChip: (count) => `🔁 ${count}回`,
                 ttsBeforeChord: '🗣️ コードの前に読み上げる', displayChord: '🎯 コード名を表示する',
                 metronomeSection: 'メトロノーム', timeSignature: '拍子', otherSection: 'その他'
             },
@@ -1669,7 +1679,7 @@
                 timerLabel: '⏰ Start auto play', timerOff: 'Off', timer5: 'In 5 min', timer15: 'In 15 min', timer30: 'In 30 min', timer60: 'In 1 hour', timer120: 'In 2 hours',
                 timerLeft: (time) => `${time} left`,
                 settingsTitle: '⚙️ Settings', playSection: 'Playback',
-                arpeggioChip: '🎵 Arpeggio', repeatChip: (count) => `🔁 ${count}x`,
+                rootChip: '🎯 Root', rootStrength: '🎯 Root boost', arpeggioChip: '🎵 Arpeggio', repeatChip: (count) => `🔁 ${count}x`,
                 ttsBeforeChord: '🗣️ Speak before the chord', displayChord: '🎯 Show the chord name',
                 metronomeSection: 'Metronome', timeSignature: 'Time', otherSection: 'Other'
             }
@@ -1906,7 +1916,7 @@
                     selectedProgressionKeys, currentPattern,
                     scaleRoot, scaleType: document.getElementById('scale-type-select').value,
                     volume: Math.round(masterVolume * 100), tempo, octaveMode,
-                    enableArpeggio, ttsBeforeChord, repeatMode, showPlayedChord,
+                    enableArpeggio, enableRootEmphasisMode, rootEmphasis, ttsBeforeChord, repeatMode, showPlayedChord,
                     metronomeTimeSignature
                 }));
             } catch (e) { /* 保存できない環境では無視 */ }
@@ -1953,6 +1963,7 @@
             if (d.currentPattern in advancedProgressions) currentPattern = d.currentPattern;
             if (d.language === 'en') currentLanguage = 'en';
             enableArpeggio = d.enableArpeggio === true;
+            enableRootEmphasisMode = d.enableRootEmphasisMode === true;
             ttsBeforeChord = d.ttsBeforeChord === true;
             if (['none', '2x', '3x'].includes(d.repeatMode)) repeatMode = d.repeatMode;
             if (typeof d.metronomeTimeSignature === 'string' && has(`#metronome-time-signature option[value="${d.metronomeTimeSignature}"]`)) {
@@ -1976,6 +1987,11 @@
             if (volume >= 1 && volume <= 100) {
                 setVolume(volume);
                 document.getElementById('volume-slider').value = volume;
+            }
+            const savedRoot = Number(d.rootEmphasis);
+            if (savedRoot >= 0.2 && savedRoot <= 3) {
+                setRootEmphasis(Math.round(savedRoot * 100));
+                document.getElementById('root-emphasis-slider').value = Math.round(savedRoot * 100);
             }
             const savedTempo = Number(d.tempo);
             if (savedTempo >= 30 && savedTempo <= 200) setTempo(savedTempo);
@@ -2063,6 +2079,20 @@
             log(`🎵 波形タイプ設定: ${value}`);
         }
 
+        function setRootEmphasis(value) {
+            rootEmphasis = value / 100;
+            document.getElementById('root-emphasis-value').textContent = `${value}%`;
+            log(`🎯 ルート音強調: ${value}%`);
+            saveSettings();
+        }
+
+        function toggleRootEmphasis(checked) {
+            enableRootEmphasisMode = checked;
+            updateDockChips();
+            log(`🎯 ルート音強調モード: ${checked ? 'ON' : 'OFF'}`);
+            saveSettings();
+        }
+
         function setOctaveMode(value) {
             octaveMode = value;
             lastAutoOctave = null;
@@ -2129,6 +2159,10 @@
             const repeat = document.getElementById('repeat-chip');
             repeat.textContent = t.repeatChip({ none: 1, '2x': 2, '3x': 3 }[repeatMode]);
             repeat.classList.toggle('on', repeatMode !== 'none');
+            const root = document.getElementById('root-chip');
+            root.textContent = t.rootChip;
+            root.classList.toggle('on', enableRootEmphasisMode);
+            root.setAttribute('aria-pressed', enableRootEmphasisMode);
         }
 
         function setRepeatMode(mode) {
@@ -2483,6 +2517,13 @@
         }
 
         // === WAV音声生成（iPhone対応） ===
+        // 各音の音量の割合（合計1）。ルート強調のときはルートを大きくして、全体の大きさは変えない
+        function getNoteWeights(count) {
+            const boost = enableRootEmphasisMode ? rootEmphasis : 0;
+            const total = count + boost;
+            return Array.from({ length: count }, (_, index) => (index === 0 ? 1 + boost : 1) / total);
+        }
+
         function generateChordWAV(frequencies, duration, sampleRate = 44100) {
             const numSamples = Math.floor(duration * sampleRate);
             const numChannels = 1;
@@ -2512,6 +2553,7 @@
             
             // iPhone対応：音量を完全に固定値で一定に保つ（音量変動問題完全解決）
             // 音量が徐々に大きくなる現象を完全に防止するため、baseVolumeを完全に固定
+            const noteWeights = getNoteWeights(frequencies.length);
             const baseVolume = 0.3; // 完全固定値、masterVolumeに依存しない（音量変動防止）
             
             // ノイズ防止：スムーズなフェードアウト（再生終わりのノイズを防ぐ）
@@ -2530,8 +2572,6 @@
                 
                 // 各音のサイン波を生成（位相を0から開始して一定に保つ）
                 // トレモロ完全防止：各音の音量を完全に固定し、合成後の振幅を厳密に制限
-                // 各音の音量を均等に分配（音数で割る）- 音量変動防止のため固定
-                const noteVolume = maxAmplitude / frequencies.length;
                 
                 // 各音を独立して計算して合成（トレモロ防止）
                 sample = 0;
@@ -2540,7 +2580,7 @@
                     const phase = 2 * Math.PI * freq * i / sampleRate;
                     const waveValue = Math.sin(phase);
                     // 各音の音量を完全に固定（トレモロ完全防止）
-                    sample += waveValue * noteVolume;
+                    sample += waveValue * maxAmplitude * noteWeights[idx];
                 }
                 
                 // 音量が徐々に大きくなる現象を完全に防止：厳密なクリッピング（調整は一切行わない）
@@ -2614,6 +2654,7 @@
             
             // iPhone対応：アルペジオ音量を完全に固定値で一定に保つ（音量変動問題完全解決）
             const noteVolume = 0.2; // 完全固定値、masterVolumeに依存しない
+            const noteWeights = getNoteWeights(frequencies.length);
             
             // アルペジオデータ生成（ノイズ完全防止・サスティーン延長）
             let offset = 44;
@@ -2644,7 +2685,7 @@
                             envelope = (endTime - currentTime) / fadeOutDuration;
                         }
                         
-                        sample += wave * noteVolume * envelope;
+                        sample += wave * noteVolume * frequencies.length * noteWeights[noteIndex] * envelope;
                     }
                 });
                 
@@ -2837,7 +2878,7 @@
                 updatePlayedChordLabel(chordName);
                 
                 // 単音コードと同じ音量にそろえる
-                const noteCount = frequencies.length;
+                const noteWeights = getNoteWeights(frequencies.length);
 
                 const promises = frequencies.map((freq, index) => {
                     return new Promise((resolve) => {
@@ -2847,7 +2888,7 @@
                         oscillator.frequency.setValueAtTime(freq, ctx.currentTime);
                         oscillator.type = waveformType;
 
-                        const volume = (0.3 / noteCount) * masterVolume * 2;
+                        const volume = 0.3 * noteWeights[index] * masterVolume * 2;
                         
                         gainNode.gain.setValueAtTime(0, ctx.currentTime);
                         gainNode.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.01);
@@ -4138,6 +4179,8 @@
         window.setTempo = setTempo;
         window.setOctaveMode = setOctaveMode;
         window.toggleArpeggio = toggleArpeggio;
+        window.toggleRootEmphasis = toggleRootEmphasis;
+        window.setRootEmphasis = setRootEmphasis;
         window.cycleRepeatMode = cycleRepeatMode;
         window.setTTSTiming = setTTSTiming;
         window.playRandomChord = playRandomChord;
