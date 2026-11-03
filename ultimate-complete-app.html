@@ -588,6 +588,10 @@
 
         /* タブごとに関係ないボタンは隠す */
         body[data-mode]:not([data-mode="random"]) #random-controls { display: none; }
+        #tempo-row { display: flex; align-items: center; gap: 12px; max-width: 480px; margin: 0 auto 12px; font-weight: 700; }
+        #tempo-row input { flex: 1; }
+        #tempo-row span { min-width: 3em; text-align: right; font-variant-numeric: tabular-nums; }
+        body[data-mode="advanced"] #tempo-row, body[data-mode="statistics"] #tempo-row { display: none; }
 
         /* タブ */
         .mode-btn { min-height: 44px; }
@@ -670,6 +674,13 @@
             <button class="mode-btn" onclick="setMode('statistics')" id="statistics-mode" style="padding: 10px 15px; font-size: 0.85rem; min-width: 100px;">
                 📊 練習統計
             </button>
+        </div>
+
+        <!-- テンポ（音に関わる時間はすべてこのBPMで決まる） -->
+        <div id="tempo-row">
+            <label for="tempo-slider">🥁 BPM</label>
+            <input type="range" class="slider" id="tempo-slider" min="30" max="200" step="1" value="60" oninput="setTempo(this.value)">
+            <span id="tempo-value">60</span>
         </div>
 
         <!-- メイン制御ボタン（モード切替の直下） -->
@@ -772,13 +783,6 @@
                 <h3 style="font-size: 1rem; margin-bottom: 10px;">🥁 メトロノーム</h3>
                 <div style="display: flex; flex-direction: column; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 10px;">
-                        <label style="font-size: 0.85rem; min-width: 80px;">テンポ:</label>
-                        <input type="range" id="metronome-tempo" min="40" max="200" value="120" 
-                               oninput="updateMetronomeTempo(this.value)" 
-                               style="flex: 1;">
-                        <span id="metronome-tempo-value" style="font-size: 0.85rem; min-width: 50px; text-align: right;">120 BPM</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 10px;">
                         <label style="font-size: 0.85rem; min-width: 80px;">拍子:</label>
                         <select id="metronome-time-signature" onchange="updateMetronomeTimeSignature(this.value)" 
                                 style="flex: 1; padding: 6px; border-radius: 6px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color);">
@@ -842,29 +846,9 @@
                         <input type="range" class="slider" min="1" max="100" value="50" onchange="setVolume(this.value)" style="flex: 2; margin-left: 8px;">
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <label style="font-size: 0.75rem; flex: 1;">⏱️コード長さ</label>
-                        <span id="duration-value" style="font-size: 0.75rem; min-width: 40px; text-align: right;">2.0秒</span>
-                        <input type="range" class="slider" min="0.5" max="8" step="0.1" value="2.0" onchange="setDuration(this.value)" style="flex: 2; margin-left: 8px;">
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
                         <label style="font-size: 0.75rem; flex: 1;">🎯ルート強調</label>
                         <span id="root-emphasis-value" style="font-size: 0.75rem; min-width: 40px; text-align: right;">20%</span>
                         <input type="range" class="slider" min="0" max="100" value="20" onchange="setRootEmphasis(this.value)" style="flex: 2; margin-left: 8px;">
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <label style="font-size: 0.75rem; flex: 1;">🎼アルペジオ遅延</label>
-                        <span id="arpeggio-delay-value" style="font-size: 0.75rem; min-width: 40px; text-align: right;">0.3秒</span>
-                        <input type="range" class="slider" min="0" max="0.5" step="0.05" value="0.3" onchange="setArpeggioDelay(this.value)" style="flex: 2; margin-left: 8px;">
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <label style="font-size: 0.75rem; flex: 1;">🎵アルペジオ速度</label>
-                        <span id="arpeggio-speed-value" style="font-size: 0.75rem; min-width: 40px; text-align: right;">0.25秒</span>
-                        <input type="range" class="slider" min="0.1" max="0.8" step="0.05" value="0.25" onchange="setArpeggioSpeed(this.value)" style="flex: 2; margin-left: 8px;">
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <label style="font-size: 0.75rem; flex: 1;" title="自動再生の速さ。コード2拍＋読み上げ2拍で1サイクル">🥁自動再生BPM</label>
-                        <span id="cycle-bpm-value" style="font-size: 0.75rem; min-width: 40px; text-align: right;">60</span>
-                        <input type="range" class="slider" min="30" max="120" step="1" value="60" oninput="setCycleBpm(this.value)" style="flex: 2; margin-left: 8px;">
                     </div>
                 </div>
             </div>
@@ -1103,20 +1087,21 @@
         let selectedProgressionKeys = ['C'];
         let currentPattern = 'basic1';
         let masterVolume = 0.5;
-        let chordDuration = 2.0;
+        let chordDuration = 2.0; // 2拍
         let waveformType = 'sine';
         let rootEmphasis = 0.2;
         let enableArpeggio = false;
         let enableRootEmphasisMode = false;
         let ttsBeforeChord = false;
         let enableTranspositionMode = false;
-        let arpeggioDelay = 0.3;
-        let arpeggioSpeed = 0.25; // アルペジオの音間隔（秒）
-        let cycleBpm = 60; // 自動再生のテンポ（コード2拍＋読み上げ2拍で1サイクル）
+        let arpeggioDelay = 0.3; // 0.3拍
+        let arpeggioSpeed = 0.25; // アルペジオの音間隔（0.25拍）
+        let tempo = 60; // BPM。下の時間はすべて setTempo で決まる
+        let tempoRestartTimer = null;
         let repeatMode = 'none'; // 'none', '2x', '3x'
-        let progressionInterval = 1.0;
-        let progressionTTSDelay = 0.5;
-        let progressionGap = 0.8;
+        let progressionInterval = 0; // コードは2拍ごとに切れ目なく進む
+        let progressionTTSDelay = 1.0; // 1拍
+        let progressionGap = 2.0; // 2拍
         
         // 拡張された使用統計
         let usageStats = {
@@ -1658,8 +1643,6 @@
                 displayChord: '表示されたコード名',
                 ttsBeforeChord: '🗣️ コード前TTS',
                 enableArpeggio: '🎵 アルペジオ有効',
-                arpeggioSpeed: '🎵 アルペジオ速度',
-                chordDuration: '🎵 コード長さ',
                 masterVolume: '🔊 マスターボリューム',
                 repeatMode: '🔄 繰り返しモード',
                 none: 'なし',
@@ -1693,8 +1676,6 @@
                 displayChord: 'Display Played Chord Name',
                 ttsBeforeChord: '🗣️ TTS Before Chord',
                 enableArpeggio: '🎵 Enable Arpeggio',
-                arpeggioSpeed: '🎵 Arpeggio Speed',
-                chordDuration: '🎵 Chord Duration',
                 masterVolume: '🔊 Master Volume',
                 repeatMode: '🔄 Repeat Mode',
                 none: 'None',
@@ -1753,8 +1734,6 @@
                 if (text.includes('表示されたコード名')) label.textContent = text.replace('表示されたコード名', t.displayChord);
                 if (text.includes('コード前TTS')) label.textContent = text.replace('コード前TTS', t.ttsBeforeChord);
                 if (text.includes('アルペジオ有効')) label.textContent = text.replace('アルペジオ有効', t.enableArpeggio);
-                if (text.includes('アルペジオ速度')) label.textContent = text.replace('アルペジオ速度', t.arpeggioSpeed);
-                if (text.includes('コード長さ')) label.textContent = text.replace('コード長さ', t.chordDuration);
                 if (text.includes('マスターボリューム')) label.textContent = text.replace('マスターボリューム', t.masterVolume);
                 if (text.includes('繰り返しモード')) label.textContent = text.replace('繰り返しモード', t.repeatMode);
             });
@@ -1868,12 +1847,6 @@
             log(`🔊 音量設定: ${value}% (masterVolume=${masterVolume})`);
         }
 
-        function setDuration(value) {
-            chordDuration = parseFloat(value);
-            document.getElementById('duration-value').textContent = `${value}秒`;
-            log(`⏱️ コード長さ設定: ${value}秒`);
-        }
-
         function setWaveform(value) {
             waveformType = value;
             log(`🎵 波形タイプ設定: ${value}`);
@@ -1885,22 +1858,25 @@
             log(`🎯 ルート音強調: ${value}%`);
         }
 
-        function setArpeggioDelay(value) {
-            arpeggioDelay = parseFloat(value);
-            document.getElementById('arpeggio-delay-value').textContent = `${value}秒`;
-            log(`🎼 アルペジオ遅延: ${value}秒`);
-        }
-
-        function setArpeggioSpeed(value) {
-            arpeggioSpeed = parseFloat(value);
-            document.getElementById('arpeggio-speed-value').textContent = `${value}秒`;
-            log(`🎵 アルペジオ速度: ${value}秒間隔`);
-        }
-
-        function setCycleBpm(value) {
-            cycleBpm = parseInt(value);
-            document.getElementById('cycle-bpm-value').textContent = `${cycleBpm}`;
-            log(`🥁 自動再生BPM: ${cycleBpm}`);
+        function setTempo(value) {
+            tempo = parseInt(value);
+            const beat = 60 / tempo;
+            chordDuration = 2 * beat;
+            arpeggioDelay = 0.3 * beat;
+            arpeggioSpeed = 0.25 * beat;
+            progressionTTSDelay = beat;
+            progressionGap = 2 * beat;
+            document.getElementById('tempo-value').textContent = `${tempo}`;
+            log(`🥁 BPM: ${tempo}`);
+            
+            // メトロノームが実行中の場合は再起動（スライダーを動かしている間は待つ）
+            clearTimeout(tempoRestartTimer);
+            tempoRestartTimer = setTimeout(() => {
+                if (isMetronomeRunning) {
+                    stopMetronome();
+                    startMetronome();
+                }
+            }, 150);
         }
 
         function toggleArpeggio(checked) {
@@ -1926,24 +1902,6 @@
         function setRepeatMode(mode) {
             repeatMode = mode;
             log(`🔁 再生モード: ${mode === 'none' ? '1回' : mode === '2x' ? '2回' : '3回'}再生`);
-        }
-
-        function setProgressionInterval(value) {
-            progressionInterval = parseFloat(value);
-            document.getElementById('progression-interval-value').textContent = `${value}秒`;
-            log(`🎼 進行コード間隔: ${value}秒`);
-        }
-
-        function setProgressionTTSDelay(value) {
-            progressionTTSDelay = parseFloat(value);
-            document.getElementById('progression-tts-delay-value').textContent = `${value}秒`;
-            log(`🎵 進行後TTS遅延: ${value}秒`);
-        }
-
-        function setProgressionGap(value) {
-            progressionGap = parseFloat(value);
-            document.getElementById('progression-gap-value').textContent = `${value}秒`;
-            log(`🔄 進行間隔: ${value}秒`);
         }
 
         // === 高度な設定 ===
@@ -2440,7 +2398,7 @@
         
         // アルペジオ用WAV生成
         function generateArpeggioWAV(frequencies, sampleRate = 44100) {
-            const noteDelay = arpeggioSpeed; // スライダーで調整可能な音間隔
+            const noteDelay = arpeggioSpeed; // BPMで決まる音間隔
             const noteDuration = 0.4; // 各音の長さ
             const totalDuration = frequencies.length * noteDelay + noteDuration;
             const numSamples = Math.floor(totalDuration * sampleRate);
@@ -2539,11 +2497,6 @@
         let activeProgressionOscillators = [];
         let playbackToken = 0; // 止めるたびに増やす。待機中の処理はこれで打ち切る
 
-        // 自動再生中はBPMの2拍分、手動のときは「コードの長さ」の設定
-        function currentChordSeconds() {
-            return autoPlayTimer ? 2 * 60 / cycleBpm : chordDuration;
-        }
-
         function stopChordSound() {
             if (!activeChordSound) return;
             const sound = activeChordSound;
@@ -2609,7 +2562,7 @@
                 // WAV音声を生成（エラーハンドリング追加）
                 let wavBuffer;
                 try {
-                    wavBuffer = generateChordWAV(frequencies, currentChordSeconds());
+                    wavBuffer = generateChordWAV(frequencies, chordDuration);
                     log(`✅ WAV生成成功: ${chordName}`);
                 } catch (error) {
                     log(`❌ WAV生成エラー: ${error.message}`);
@@ -2749,7 +2702,7 @@
                     // WAV音声を生成（エラーハンドリング追加）
                     let wavBuffer;
                     try {
-                        wavBuffer = generateChordWAV(frequencies, currentChordSeconds());
+                        wavBuffer = generateChordWAV(frequencies, chordDuration);
                         log(`✅ WAV生成成功: ${chordName}`);
                     } catch (error) {
                         log(`❌ WAV生成エラー: ${error.message}`);
@@ -2797,7 +2750,6 @@
         // メトロノーム制御
         let metronomeTimer = null;
         let isMetronomeRunning = false;
-        let metronomeTempo = 120; // BPM
         let metronomeTimeSignature = '4/4';
         let metronomeBeat = 0;
         
@@ -2844,11 +2796,11 @@
                 updatePlayedChordLabel(`${rootScale} ${scaleType} - ${noteName}`);
                 
                 // 単音を再生
-                await playSingleNote(frequency, 0.5); // 各音0.5秒
+                await playSingleNote(frequency, 30 / tempo); // 各音0.5拍
                 
                 // 音の間隔（最後の音以外）
                 if (i < pattern.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    await new Promise(resolve => setTimeout(resolve, 6000 / tempo));
                 }
             }
             
@@ -2955,16 +2907,6 @@
         }
         
         // === メトロノーム機能 ===
-        function updateMetronomeTempo(value) {
-            metronomeTempo = parseInt(value);
-            document.getElementById('metronome-tempo-value').textContent = `${metronomeTempo} BPM`;
-            
-            // メトロノームが実行中の場合は再起動
-            if (isMetronomeRunning) {
-                stopMetronome();
-                startMetronome();
-            }
-        }
         
         function updateMetronomeTimeSignature(value) {
             metronomeTimeSignature = value;
@@ -3002,13 +2944,13 @@
                 display.style.display = 'block';
             }
             
-            log(`🥁 メトロノーム開始: ${metronomeTempo} BPM, ${metronomeTimeSignature}`);
+            log(`🥁 メトロノーム開始: ${tempo} BPM, ${metronomeTimeSignature}`);
             
             // 拍子を解析（例: "4/4" -> 4拍）
             const beats = parseInt(metronomeTimeSignature.split('/')[0]);
             
             // 1拍あたりの時間（ミリ秒）
-            const beatInterval = (60 / metronomeTempo) * 1000;
+            const beatInterval = (60 / tempo) * 1000;
             
             // 最初の拍を即座に再生
             playMetronomeBeat(1);
@@ -3473,11 +3415,11 @@
                         runCycle();
                         return;
                     }
-                    nextBeatTime += 60000 / cycleBpm;
+                    nextBeatTime += 60000 / tempo;
                     autoCycleTimeout = setTimeout(onBeat, Math.max(0, nextBeatTime - Date.now()));
                 };
-                nextBeatTime += 60000 / cycleBpm;
-                autoCycleTimeout = setTimeout(onBeat, 60000 / cycleBpm);
+                nextBeatTime += 60000 / tempo;
+                autoCycleTimeout = setTimeout(onBeat, 60000 / tempo);
             };
             
             // 最初のサイクルを開始
@@ -3495,7 +3437,7 @@
                 log(`🎨 ボタンクラス追加: ${button.className}`);
                 log(`🎨 ボタンスタイル強制適用: background=${button.style.background}`);
             }
-            log(`🔄 自動再生開始 (BPM: ${cycleBpm})`);
+            log(`🔄 自動再生開始 (BPM: ${tempo})`);
             runCycle();
         }
 
@@ -4096,12 +4038,9 @@
         window.toggleChordType = toggleChordType;
         window.selectProgression = selectProgression;
         window.setVolume = setVolume;
-        window.setDuration = setDuration;
         window.setWaveform = setWaveform;
         window.setRootEmphasis = setRootEmphasis;
-        window.setArpeggioDelay = setArpeggioDelay;
-        window.setArpeggioSpeed = setArpeggioSpeed;
-        window.setCycleBpm = setCycleBpm;
+        window.setTempo = setTempo;
         window.toggleArpeggio = toggleArpeggio;
         window.toggleRootEmphasis = toggleRootEmphasis;
         window.setTTSTiming = setTTSTiming;
@@ -4134,7 +4073,6 @@
         window.playScale = playScale;
         window.toggleScaleAutoPlay = toggleScaleAutoPlay;
         window.toggleMetronome = toggleMetronome;
-        window.updateMetronomeTempo = updateMetronomeTempo;
         window.updateMetronomeTimeSignature = updateMetronomeTimeSignature;
         window.showChordDiagram = showChordDiagram;
         window.closeChordDiagram = closeChordDiagram;
