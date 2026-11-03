@@ -645,14 +645,7 @@
         }
         select option { background: var(--card-color); color: var(--text-color); }
 
-        /* 単音コード：出題の範囲の切り替え */
-        .segmented { display: flex; gap: 4px; margin-bottom: 15px; }
-        .seg-btn {
-            flex: 1 1 0; min-width: 0; min-height: 44px; padding: 8px 6px; font: inherit; font-size: 0.85rem; font-weight: 600;
-            border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color);
-            cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
-        }
-        .seg-btn.selected { background: var(--primary-color); border-color: var(--primary-color); color: #fff; }
+        /* 今の選択で出るコード */
         .hint { font-size: 0.8rem; opacity: 0.85; margin: 0 0 12px; text-align: center; }
 
         /* オレンジ：今のコード名と、自動再生のボタン */
@@ -736,16 +729,30 @@
 
         <!-- Random Mode Settings -->
         <div class="settings show" id="random-settings" style="padding: 15px; margin-bottom: 15px;">
-            <div class="segmented" role="group" aria-label="出題の範囲">
-                <button type="button" class="seg-btn selected" id="source-scale" data-i18n="sourceScale" onclick="setChordSource('scale')">🎵 キーの中のコード</button>
-                <button type="button" class="seg-btn" id="source-keys" data-i18n="sourceKeys" onclick="setChordSource('keys')">🎹 ルートとタイプ</button>
-            </div>
             <p class="hint" id="chord-range-hint" aria-live="polite"></p>
-            <div id="chord-source-keys" hidden>
+            <div class="mode-section" style="margin-bottom: 15px;">
+                <h3 data-i18n="scaleSelection" style="font-size: 1rem; margin-bottom: 10px;">🎵 キーで選ぶ</h3>
+                <div class="scale-selection" style="display: flex; flex-wrap: wrap; gap: 4px;">
+                    <div class="scale-btn selected" data-scale="C" onclick="toggleScale('C')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--primary-color); color: white; border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">C</div>
+                    <div class="scale-btn" data-scale="Db" onclick="toggleScale('Db')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">D♭</div>
+                    <div class="scale-btn" data-scale="D" onclick="toggleScale('D')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">D</div>
+                    <div class="scale-btn" data-scale="Eb" onclick="toggleScale('Eb')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">E♭</div>
+                    <div class="scale-btn" data-scale="E" onclick="toggleScale('E')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">E</div>
+                    <div class="scale-btn" data-scale="F" onclick="toggleScale('F')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">F</div>
+                    <div class="scale-btn" data-scale="Gb" onclick="toggleScale('Gb')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">G♭</div>
+                    <div class="scale-btn" data-scale="G" onclick="toggleScale('G')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">G</div>
+                    <div class="scale-btn" data-scale="Ab" onclick="toggleScale('Ab')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">A♭</div>
+                    <div class="scale-btn" data-scale="A" onclick="toggleScale('A')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">A</div>
+                    <div class="scale-btn" data-scale="Bb" onclick="toggleScale('Bb')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">B♭</div>
+                    <div class="scale-btn" data-scale="B" onclick="toggleScale('B')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">B</div>
+                </div>
+            </div>
+            <details class="et-config" id="direct-chord-config">
+                <summary data-i18n="directChords">🎹 コードを直接選ぶ</summary>
             <div class="mode-section" style="margin-bottom: 15px;">
                 <h3 data-i18n="keySelection" style="font-size: 1rem; margin-bottom: 10px;">🎹 ルート音</h3>
                 <div class="piano-keyboard" style="gap: 4px;">
-                    <div class="key selected" data-key="C" onclick="toggleKey('C')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px;">C</div>
+                    <div class="key" data-key="C" onclick="toggleKey('C')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px;">C</div>
                     <div class="key flat" data-key="Db" onclick="toggleKey('Db')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px;">D♭</div>
                     <div class="key" data-key="D" onclick="toggleKey('D')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px;">D</div>
                     <div class="key flat" data-key="Eb" onclick="toggleKey('Eb')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px;">E♭</div>
@@ -759,9 +766,8 @@
                     <div class="key" data-key="B" onclick="toggleKey('B')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px;">B</div>
                 </div>
             </div>
-
             <div class="mode-section" style="margin-bottom: 15px;">
-                <h3 data-i18n="chordType" style="font-size: 1rem; margin-bottom: 10px;">🎵 コードタイプ</h3>
+                <h3 data-i18n="chordType" style="font-size: 1rem; margin-bottom: 10px;">🎶 コードタイプ</h3>
                 <div class="chord-types" style="gap: 4px;">
                     <div class="chord-type selected" data-type="" onclick="toggleChordType('')" style="padding: 5px 8px; font-size: 0.75rem;">Major</div>
                     <div class="chord-type" data-type="m" onclick="toggleChordType('m')" style="padding: 5px 8px; font-size: 0.75rem;">Minor</div>
@@ -781,26 +787,7 @@
                     <div class="chord-type" data-type="dim7" onclick="toggleChordType('dim7')" style="padding: 5px 8px; font-size: 0.75rem;">Dim7</div>
                 </div>
             </div>
-            </div>
-            <div id="chord-source-scale">
-            <div class="mode-section" style="margin-bottom: 15px;">
-                <h3 data-i18n="scaleSelection" style="font-size: 1rem; margin-bottom: 10px;">🎵 キー</h3>
-                <div class="scale-selection" style="display: flex; flex-wrap: wrap; gap: 4px;">
-                    <div class="scale-btn selected" data-scale="C" onclick="toggleScale('C')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--primary-color); color: white; border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">C</div>
-                    <div class="scale-btn" data-scale="Db" onclick="toggleScale('Db')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">D♭</div>
-                    <div class="scale-btn" data-scale="D" onclick="toggleScale('D')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">D</div>
-                    <div class="scale-btn" data-scale="Eb" onclick="toggleScale('Eb')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">E♭</div>
-                    <div class="scale-btn" data-scale="E" onclick="toggleScale('E')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">E</div>
-                    <div class="scale-btn" data-scale="F" onclick="toggleScale('F')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">F</div>
-                    <div class="scale-btn" data-scale="Gb" onclick="toggleScale('Gb')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">G♭</div>
-                    <div class="scale-btn" data-scale="G" onclick="toggleScale('G')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">G</div>
-                    <div class="scale-btn" data-scale="Ab" onclick="toggleScale('Ab')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">A♭</div>
-                    <div class="scale-btn" data-scale="A" onclick="toggleScale('A')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">A</div>
-                    <div class="scale-btn" data-scale="Bb" onclick="toggleScale('Bb')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">B♭</div>
-                    <div class="scale-btn" data-scale="B" onclick="toggleScale('B')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">B</div>
-                </div>
-            </div>
-            </div>
+            </details>
         </div>
 
         <!-- Progression Mode Settings -->
@@ -1076,8 +1063,7 @@
     <script>
         // === グローバル変数 ===
         let currentMode = 'random';
-        let chordSource = 'scale'; // 単音コードの出題範囲 'scale'（キーの中のコード） | 'keys'（ルートとタイプを選ぶ）
-        let selectedKeys = ['C'];
+        let selectedKeys = []; // 画面の「ルート音」
         let selectedChordTypes = [''];
         let selectedProgressionKeys = ['C'];
         let currentPattern = 'basic1';
@@ -1627,10 +1613,10 @@
                 singlePlay: '🎵 再生', autoPlay: '🔄 自動再生開始',
                 progressionPlay: '▶️ 進行を再生', progressionAuto: '🔄 自動進行開始',
                 scalePlay: '🎵 スケールを再生', scaleAuto: '🔄 スケール自動再生',
-                sourceScale: '🎵 キーの中のコード', sourceKeys: '🎹 ルートとタイプ',
-                hintOnly: (name) => `今は ${name} だけ出ます。ルート音かタイプを増やしてください。`,
+                                hintOnly: (name) => `今は ${name} だけ出ます。キーかコードを増やしてください。`,
+                hintList: (names) => `出るコード：${names}`,
                 hintCount: (count) => `${count}種類のコードから出ます。`,
-                keySelection: '🎹 ルート音', scaleSelection: '🎵 キー', chordType: '🎵 コードタイプ',
+                scaleSelection: '🎵 キーで選ぶ', directChords: '🎹 コードを直接選ぶ', keySelection: '🎹 ルート音', chordType: '🎶 コードタイプ',
                 progressionPattern: '🎼 コード進行パターン',
                 scaleTitle: '🎶 スケール練習', scaleType: '種類', scaleRoot: '🎹 ルート音', octave: '🎹 オクターブ',
                 settingsTitle: '⚙️ 設定', masterVolume: '🔊 音量', playSection: '再生',
@@ -1645,10 +1631,10 @@
                 singlePlay: '🎵 Play', autoPlay: '🔄 Auto Play',
                 progressionPlay: '▶️ Play', progressionAuto: '🔄 Auto Play',
                 scalePlay: '🎵 Play Scale', scaleAuto: '🔄 Auto Play',
-                sourceScale: '🎵 Chords in a key', sourceKeys: '🎹 Pick root & type',
-                hintOnly: (name) => `Only ${name} will play. Add more roots or types.`,
+                                hintOnly: (name) => `Only ${name} will play. Add a key or a chord.`,
+                hintList: (names) => `Chords: ${names}`,
                 hintCount: (count) => `Plays from ${count} chords.`,
-                keySelection: '🎹 Roots', scaleSelection: '🎵 Keys', chordType: '🎵 Chord Types',
+                scaleSelection: '🎵 Pick a key', directChords: '🎹 Pick chords directly', keySelection: '🎹 Roots', chordType: '🎶 Chord Types',
                 progressionPattern: '🎼 Progression Pattern',
                 scaleTitle: '🎶 Scale Practice', scaleType: 'Type', scaleRoot: '🎹 Root', octave: '🎹 Octave',
                 settingsTitle: '⚙️ Settings', masterVolume: '🔊 Volume', playSection: 'Playback',
@@ -1692,8 +1678,12 @@
             const keyElement = document.querySelector(`#random-settings [data-key="${key}"]`);
             
             if (selectedKeys.includes(key)) {
-                if (selectedKeys.length === 1) return; // 最低1つのキーは選択状態を維持
+                const previous = selectedKeys;
                 selectedKeys = selectedKeys.filter(k => k !== key);
+                if (getChordPool().length === 0) { // 出るコードが無くなる操作は受けない
+                    selectedKeys = previous;
+                    return;
+                }
                 keyElement.classList.remove('selected');
             } else {
                 selectedKeys.push(key);
@@ -1706,15 +1696,19 @@
         }
 
         // === スケール選択 ===
-        let selectedScales = ['C']; // デフォルトでCスケールを選択
+        let selectedScales = ['C']; // 画面の「キーで選ぶ」。デフォルトはCキー
         
         function toggleScale(scale) {
             log(`🎵 スケール切り替え: ${scale}`);
             const scaleElement = document.querySelector(`#random-settings [data-scale="${scale}"]`);
             
             if (selectedScales.includes(scale)) {
-                if (selectedScales.length === 1) return; // 最低1つのスケールは選択状態を維持
+                const previous = selectedScales;
                 selectedScales = selectedScales.filter(s => s !== scale);
+                if (getChordPool().length === 0) { // 出るコードが無くなる操作は受けない
+                    selectedScales = previous;
+                    return;
+                }
                 scaleElement.classList.remove('selected');
                 scaleElement.style.background = 'var(--card-color)';
                 scaleElement.style.color = 'var(--text-color)';
@@ -1730,30 +1724,36 @@
             saveSettings();
         }
 
+        // 出題するコード：キー × コードタイプ と、スケールの中のコードを合わせたもの
+        function getChordPool() {
+            const pool = new Map();
+            selectedKeys.forEach(key => {
+                selectedChordTypes.forEach(type => {
+                    pool.set(key + type, { key, type, name: key + type });
+                });
+            });
+            selectedScales.forEach(scale => {
+                (scaleChords[scale] || []).forEach(chord => {
+                    const parsed = parseChordName(chord);
+                    pool.set(chord, { key: parsed[0], type: parsed[1], name: chord });
+                });
+            });
+            return [...pool.values()];
+        }
+
         // 今の選択でどのコードが出るかを見せる
         function updateChordRangeHint() {
             const el = document.getElementById('chord-range-hint');
             if (!el) return;
             const t = translations[currentLanguage];
-            if (chordSource === 'scale') {
-                el.textContent = selectedScales.map(key => `${key}: ${scaleChords[key].join(' ')}`).join(' / ');
-                return;
+            const names = getChordPool().map(chord => chord.name);
+            if (names.length === 1) {
+                el.textContent = t.hintOnly(names[0]);
+            } else if (names.length <= 14) {
+                el.textContent = t.hintList(names.join(' '));
+            } else {
+                el.textContent = t.hintCount(names.length);
             }
-            const typeCount = selectedChordTypes.length > 0 ? selectedChordTypes.length : Object.keys(extendedChordLibrary).length;
-            const count = selectedKeys.length * typeCount;
-            el.textContent = count === 1 ? t.hintOnly(selectedKeys[0] + (selectedChordTypes[0] || '')) : t.hintCount(count);
-        }
-
-        // 単音コードの出題範囲（キーの中のコード / ルートとタイプを選ぶ）
-        function setChordSource(source) {
-            chordSource = source;
-            document.getElementById('source-keys').classList.toggle('selected', source === 'keys');
-            document.getElementById('source-scale').classList.toggle('selected', source === 'scale');
-            document.getElementById('chord-source-keys').hidden = source !== 'keys';
-            document.getElementById('chord-source-scale').hidden = source !== 'scale';
-            updateChordRangeHint();
-            log(`🎯 出題範囲: ${source}`);
-            saveSettings();
         }
 
         // スケールタブのルート音（1つだけ選ぶ）
@@ -1790,8 +1790,8 @@
         function saveSettings() {
             try {
                 localStorage.setItem(SETTINGS_KEY, JSON.stringify({
-                    v: 2, mode: currentMode, language: currentLanguage,
-                    chordSource, selectedKeys, selectedScales, selectedChordTypes,
+                    mode: currentMode, language: currentLanguage,
+                    selectedKeys, selectedScales, selectedChordTypes,
                     selectedProgressionKeys, currentPattern,
                     scaleRoot, scaleType: document.getElementById('scale-type-select').value,
                     volume: Math.round(masterVolume * 100), tempo, octaveMode,
@@ -1828,12 +1828,16 @@
                 return valid.length > 0 ? valid : fallback;
             };
 
-            selectedKeys = pick(d.selectedKeys, v => `#random-settings [data-key="${v}"]`, selectedKeys);
-            selectedScales = pick(d.selectedScales, v => `#random-settings [data-scale="${v}"]`, selectedScales);
-            // コードタイプは0個でも「全タイプ」として動く
-            if (Array.isArray(d.selectedChordTypes)) {
-                selectedChordTypes = d.selectedChordTypes.filter(v => typeof v === 'string' && has(`#random-settings [data-type="${v}"]`));
+            const keep = (list, selector, fallback) => Array.isArray(list) ? list.filter(v => typeof v === 'string' && has(selector(v))) : fallback;
+            selectedKeys = keep(d.selectedKeys, v => `#random-settings [data-key="${v}"]`, selectedKeys);
+            selectedScales = keep(d.selectedScales, v => `#random-settings [data-scale="${v}"]`, selectedScales);
+            selectedChordTypes = keep(d.selectedChordTypes, v => `#random-settings [data-type="${v}"]`, selectedChordTypes);
+            if (getChordPool().length === 0) {
+                selectedKeys = [];
+                selectedScales = ['C'];
+                selectedChordTypes = [''];
             }
+            document.getElementById('direct-chord-config').open = selectedKeys.length > 0;
             selectedProgressionKeys = pick(d.selectedProgressionKeys, v => `#progression-settings [data-key="${v}"]`, selectedProgressionKeys);
             if (d.currentPattern in advancedProgressions) currentPattern = d.currentPattern;
             if (d.language === 'en') currentLanguage = 'en';
@@ -1869,7 +1873,7 @@
             const showChord = d.showPlayedChord !== false;
             document.getElementById('toggle-played-chord').checked = showChord;
             togglePlayedChordVisibility(showChord);
-            setChordSource(d.v >= 2 && d.chordSource === 'keys' ? 'keys' : 'scale');
+            updateChordRangeHint();
             setScaleRoot(SCALE_ROOTS.includes(d.scaleRoot) ? d.scaleRoot : 'C');
             if (['random', 'progression', 'ear-training', 'scale', 'statistics'].includes(d.mode)) showMode(d.mode);
             if (currentLanguage === 'en') updateLanguage();
@@ -1905,7 +1909,12 @@
             const typeElement = document.querySelector(`#random-settings [data-type="${type}"]`);
             
             if (selectedChordTypes.includes(type)) {
+                const previous = selectedChordTypes;
                 selectedChordTypes = selectedChordTypes.filter(t => t !== type);
+                if (getChordPool().length === 0) { // 出るコードが無くなる操作は受けない
+                    selectedChordTypes = previous;
+                    return;
+                }
                 typeElement.classList.remove('selected');
             } else {
                 selectedChordTypes.push(type);
@@ -3090,69 +3099,13 @@
             const token = playbackToken;
             currentPlayingMode = 'random';
             
-            // 使用するコードタイプを決定（選択されていない場合は全て使用）
-            const availableChordTypes = selectedChordTypes.length > 0 ? selectedChordTypes : Object.keys(extendedChordLibrary);
-            
-            // 同じコードが連続しないようにランダム選択（改善版）
-            let randomKey, randomType, chordName;
-            let attempts = 0;
-            const maxAttempts = 50; // 最大試行回数を増やす
-            
-            // 利用可能なコードリストを事前に生成（重複排除）
-            let availableChords = [];
-            if (chordSource === 'keys') {
-                selectedKeys.forEach(key => {
-                    availableChordTypes.forEach(type => {
-                        const chord = key + type;
-                        if (chord !== lastPlayedChord) {
-                            availableChords.push({key: key, type: type, name: chord});
-                        }
-                    });
-                });
-            } else {
-                // スケールが選択されている場合
-                selectedScales.forEach(scale => {
-                    const scaleChordList = scaleChords[scale] || [];
-                    scaleChordList.forEach(chord => {
-                        if (chord !== lastPlayedChord) {
-                            const parsed = parseChordName(chord);
-                            availableChords.push({key: parsed[0], type: parsed[1], name: chord});
-                        }
-                    });
-                });
-            }
-            
-            // 利用可能なコードがない場合は、lastPlayedChordの制約を解除
-            if (availableChords.length === 0) {
-                if (chordSource === 'keys') {
-                    selectedKeys.forEach(key => {
-                        availableChordTypes.forEach(type => {
-                            availableChords.push({key: key, type: type, name: key + type});
-                        });
-                    });
-                } else {
-                    selectedScales.forEach(scale => {
-                        const scaleChordList = scaleChords[scale] || [];
-                        scaleChordList.forEach(chord => {
-                            const parsed = parseChordName(chord);
-                            availableChords.push({key: parsed[0], type: parsed[1], name: chord});
-                        });
-                    });
-                }
-            }
-            
-            // ランダムに選択
-            if (availableChords.length > 0) {
-                const selected = availableChords[Math.floor(Math.random() * availableChords.length)];
-                randomKey = selected.key;
-                randomType = selected.type;
-                chordName = selected.name;
-            } else {
-                // フォールバック
-                randomKey = 'C';
-                randomType = '';
-                chordName = 'C';
-            }
+            // 同じコードが連続しないようにランダム選択
+            const pool = getChordPool();
+            const candidates = pool.length > 1 ? pool.filter(chord => chord.name !== lastPlayedChord) : pool;
+            const selected = candidates[Math.floor(Math.random() * candidates.length)];
+            const randomKey = selected.key;
+            const randomType = selected.type;
+            const chordName = selected.name;
             
             log(`🎲 ランダム選択: ${chordName}`);
             updatePlayedChordLabel(chordName);
@@ -4044,7 +3997,6 @@
         // === グローバル関数の公開 ===
         window.setMode = setMode;
         window.toggleKey = toggleKey;
-        window.setChordSource = setChordSource;
         window.setScaleRoot = setScaleRoot;
         window.openSettings = openSettings;
         window.closeSettings = closeSettings;
