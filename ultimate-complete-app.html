@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Ultimate Chord Training App - Complete Edition v2024.12.16.3</title>
+    <title>コード聴音トレーニング</title>
     <style>
         :root {
             --primary-color: #4CAF50;
@@ -538,28 +538,28 @@
         button.chord-type.et-wrong, button.chord-type.et-wrong:hover { background: var(--accent-color); border-color: var(--accent-color); color: #fff; opacity: 1; }
         /* 画面下の固定表示（再生中のコード名）がコンテンツに重ならないよう余白を確保 */
         body {
-            padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+            padding-bottom: calc(130px + env(safe-area-inset-bottom, 0px));
         }
-        /* 文字に半分かぶって見えないよう、画面下いっぱいの帯にする */
-        .played-chord {
-            left: 0;
-            right: 0;
-            bottom: 0;
-            transform: none;
-            width: 100%;
-            max-width: 100%;
-            box-sizing: border-box;
-            border: none;
-            border-top: 2px solid var(--border-color);
-            border-radius: 0;
+        /* 画面下いっぱいの帯：コード名と再生ボタンをいつでも押せる位置に置く */
+        .dock {
+            position: fixed; left: 0; right: 0; bottom: 0; z-index: 1200;
+            background: var(--card-color); border-top: 2px solid var(--border-color);
             box-shadow: 0 -4px 12px rgba(0,0,0,0.2);
-            padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+        .played-chord {
+            position: static; transform: none; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;
+            background: transparent; border: none; border-radius: 0; box-shadow: none;
+            padding: 6px 16px; font-size: 1.05rem;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .dock-actions { display: none; gap: 8px; max-width: 800px; margin: 0 auto; padding: 0 10px 10px; }
+        .dock-actions .control-btn {
+            flex: 1 1 0 !important; min-width: 0 !important; margin: 0;
+            padding: 8px 6px !important; font-size: 0.9rem !important; white-space: normal !important;
         }
         #mobile-console {
-            bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
+            bottom: calc(120px + env(safe-area-inset-bottom, 0px)) !important;
         }
 
         /* ===== 見た目・使いやすさの調整（2026/10/30） ===== */
@@ -587,7 +587,10 @@
         .icon-btn.theme-btn { width: 40px; padding: 0; font-size: 1.1rem; }
 
         /* タブごとに関係ないボタンは隠す */
-        body[data-mode]:not([data-mode="random"]) #random-controls { display: none; }
+        body[data-mode="random"] #random-controls,
+        body[data-mode="progression"] #progression-controls,
+        body[data-mode="scale"] #scale-controls,
+        body[data-mode="ear-training"] #ear-training-controls { display: flex; }
 
         /* タブ */
         .mode-btn { min-height: 44px; }
@@ -634,6 +637,52 @@
             .control-buttons { gap: 8px !important; }
             .control-btn { min-width: 0; flex: 1 1 140px; padding: 12px 10px !important; font-size: 0.92rem !important; white-space: nowrap; }
         }
+
+        /* 選択欄をテーマの色にそろえる */
+        select {
+            font: inherit; font-size: 0.9rem; min-height: 40px; padding: 6px 10px; border-radius: 8px;
+            background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color);
+        }
+        select option { background: var(--card-color); color: var(--text-color); }
+
+        /* 単音コード：出題の範囲の切り替え */
+        .segmented { display: flex; gap: 4px; margin-bottom: 15px; }
+        .seg-btn {
+            flex: 1 1 0; min-width: 0; min-height: 44px; padding: 8px 6px; font: inherit; font-size: 0.85rem; font-weight: 600;
+            border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color);
+            cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+        }
+        .seg-btn.selected { background: var(--primary-color); border-color: var(--primary-color); color: #fff; }
+        .hint { font-size: 0.8rem; opacity: 0.75; margin: 0 0 5px; }
+
+        /* スケールタブのルート音 */
+        #scale-root-keys { justify-content: center; }
+        #scale-root-keys .scale-btn { border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+
+        /* 設定シート */
+        .sheet-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 5000; }
+        .sheet {
+            position: fixed; left: 0; right: 0; bottom: 0; z-index: 5001; box-sizing: border-box;
+            width: 100%; max-width: 520px; margin: 0 auto; max-height: 85vh; max-height: 85dvh; overflow-y: auto;
+            overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+            background: var(--card-color); color: var(--text-color);
+            border: 1px solid var(--border-color); border-bottom: none; border-radius: 16px 16px 0 0;
+            padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+        }
+        .sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .sheet-head h3 { margin: 0; font-size: 1.05rem; }
+        .sheet-row { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 0.9rem; }
+        .sheet-row > label { flex: 0 0 96px; font-weight: 600; }
+        .sheet-row > .slider, .sheet-row > select { flex: 1 1 0; min-width: 0; margin: 0; }
+        .sheet-row > span { flex: 0 0 40px; text-align: right; }
+        .sheet-section {
+            font-size: 0.8rem; font-weight: 700; opacity: 0.7; margin: 14px 0 4px;
+            padding-top: 12px; border-top: 1px solid var(--border-color);
+        }
+        .sheet-check { display: flex; align-items: center; gap: 8px; min-height: 40px; font-size: 0.9rem; cursor: pointer; }
+        .sheet-radios { display: flex; gap: 14px; }
+        .sheet-radios label { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; cursor: pointer; }
+        .sheet-actions { display: flex; gap: 8px; flex-wrap: wrap; }
     </style>
 </head>
 <body data-mode="random">
@@ -641,12 +690,11 @@
     <div class="container">
         <div class="header app-header">
             <div class="app-title">
-                <h1 id="main-title">🎵 Professional Chord Training Tool</h1>
-                <p id="main-subtitle">高度なコード理論と音響技術を組み合わせた本格的な学習環境</p>
+                <h1 id="main-title">🎵 コード聴音トレーニング</h1>
+                <p id="main-subtitle">コードを聞き分ける練習アプリ</p>
             </div>
             <div class="app-actions">
-                <button type="button" id="lang-switch" class="icon-btn" onclick="toggleLanguage()">🌐 English</button>
-                <button type="button" id="toggle-console-btn" class="icon-btn" onclick="toggleMobileConsole()">📋 ログ</button>
+                <button type="button" id="settings-btn" class="icon-btn theme-btn" onclick="openSettings()" aria-label="設定">⚙️</button>
                 <button type="button" id="theme-toggle" class="icon-btn theme-btn" onclick="toggleTheme()" aria-label="ライト/ダーク切替">🌙</button>
             </div>
         </div>
@@ -655,34 +703,32 @@
 
         <!-- Mode Switcher -->
         <div class="mode-switcher" style="gap: 8px; margin-bottom: 15px;">
-            <button class="mode-btn active" onclick="setMode('random')" id="random-mode" style="padding: 10px 15px; font-size: 0.85rem; min-width: 100px;">
+            <button class="mode-btn active" onclick="setMode('random')" id="random-mode" data-i18n="singleChord" style="padding: 10px 15px; font-size: 0.85rem; min-width: 100px;">
                 🎵 単音コード
             </button>
-            <button class="mode-btn" onclick="setMode('progression')" id="progression-mode" style="padding: 10px 15px; font-size: 0.85rem; min-width: 100px;">
+            <button class="mode-btn" onclick="setMode('progression')" id="progression-mode" data-i18n="chordProgression" style="padding: 10px 15px; font-size: 0.85rem; min-width: 100px;">
                 🎼 コード進行
             </button>
-            <button class="mode-btn" onclick="setMode('ear-training')" id="ear-training-mode" style="padding: 10px 15px; font-size: 0.85rem; min-width: 100px;">
+            <button class="mode-btn" onclick="setMode('ear-training')" id="ear-training-mode" data-i18n="earTraining" style="padding: 10px 15px; font-size: 0.85rem; min-width: 100px;">
                 👂 聴音訓練
             </button>
-            <button class="mode-btn" onclick="setMode('advanced')" id="advanced-mode" style="padding: 10px 15px; font-size: 0.85rem; min-width: 100px;">
-                ⚙️ 高度な設定
+            <button class="mode-btn" onclick="setMode('scale')" id="scale-mode" data-i18n="scaleTab" style="padding: 10px 15px; font-size: 0.85rem; min-width: 100px;">
+                🎶 スケール
             </button>
-            <button class="mode-btn" onclick="setMode('statistics')" id="statistics-mode" style="padding: 10px 15px; font-size: 0.85rem; min-width: 100px;">
+            <button class="mode-btn" onclick="setMode('statistics')" id="statistics-mode" data-i18n="statistics" style="padding: 10px 15px; font-size: 0.85rem; min-width: 100px;">
                 📊 練習統計
             </button>
         </div>
 
-        <!-- メイン制御ボタン（モード切替の直下） -->
-        <div class="control-buttons" id="random-controls" style="margin-bottom: 15px; gap: 8px;">
-            <button class="control-btn" onclick="playRandomChord()" style="padding: 10px 15px; font-size: 0.9rem;">🎵 単音再生</button>
-            <button class="control-btn secondary" onclick="toggleAutoPlay()" id="auto-play-btn-main" style="padding: 10px 15px; font-size: 0.9rem;">🔄 自動再生開始</button>
-            <button class="control-btn accent" onclick="testAdvancedAudio()" style="padding: 10px 15px; font-size: 0.9rem;">🔊 高品質音声テスト</button>
-        </div>
-
         <!-- Random Mode Settings -->
         <div class="settings show" id="random-settings" style="padding: 15px; margin-bottom: 15px;">
+            <div class="segmented" role="group" aria-label="出題の範囲">
+                <button type="button" class="seg-btn selected" id="source-keys" data-i18n="sourceKeys" onclick="setChordSource('keys')">🎹 キーから出題</button>
+                <button type="button" class="seg-btn" id="source-scale" data-i18n="sourceScale" onclick="setChordSource('scale')">🎵 スケールから出題</button>
+            </div>
+            <div id="chord-source-keys">
             <div class="mode-section" style="margin-bottom: 15px;">
-                <h3 style="font-size: 1rem; margin-bottom: 10px;">🎹 キー選択</h3>
+                <h3 data-i18n="keySelection" style="font-size: 1rem; margin-bottom: 10px;">🎹 キー選択</h3>
                 <div class="piano-keyboard" style="gap: 4px;">
                     <div class="key selected" data-key="C" onclick="toggleKey('C')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px;">C</div>
                     <div class="key flat" data-key="Db" onclick="toggleKey('Db')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px;">D♭</div>
@@ -700,45 +746,7 @@
             </div>
 
             <div class="mode-section" style="margin-bottom: 15px;">
-                <h3 style="font-size: 1rem; margin-bottom: 10px;">🎵 スケール選択</h3>
-                <div class="scale-selection" style="display: flex; flex-wrap: wrap; gap: 4px;">
-                    <div class="scale-btn selected" data-scale="C" onclick="toggleScale('C')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--primary-color); color: white; border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">C</div>
-                    <div class="scale-btn" data-scale="Db" onclick="toggleScale('Db')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">D♭</div>
-                    <div class="scale-btn" data-scale="D" onclick="toggleScale('D')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">D</div>
-                    <div class="scale-btn" data-scale="Eb" onclick="toggleScale('Eb')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">E♭</div>
-                    <div class="scale-btn" data-scale="E" onclick="toggleScale('E')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">E</div>
-                    <div class="scale-btn" data-scale="F" onclick="toggleScale('F')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">F</div>
-                    <div class="scale-btn" data-scale="Gb" onclick="toggleScale('Gb')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">G♭</div>
-                    <div class="scale-btn" data-scale="G" onclick="toggleScale('G')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">G</div>
-                    <div class="scale-btn" data-scale="Ab" onclick="toggleScale('Ab')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">A♭</div>
-                    <div class="scale-btn" data-scale="A" onclick="toggleScale('A')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">A</div>
-                    <div class="scale-btn" data-scale="Bb" onclick="toggleScale('Bb')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">B♭</div>
-                    <div class="scale-btn" data-scale="B" onclick="toggleScale('B')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">B</div>
-                </div>
-            </div>
-
-            <div class="mode-section" style="margin-bottom: 15px;">
-                <h3 style="font-size: 1rem; margin-bottom: 10px;">🎼 スケール練習</h3>
-                <div style="margin-bottom: 10px;">
-                    <label style="font-size: 0.85rem; margin-right: 10px;">スケールタイプ:</label>
-                    <select id="scale-type-select" style="padding: 6px 10px; font-size: 0.85rem; border-radius: 6px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color);">
-                        <option value="major">メジャースケール</option>
-                        <option value="minor">ナチュラルマイナースケール</option>
-                        <option value="harmonic_minor">ハーモニックマイナースケール</option>
-                        <option value="melodic_minor">メロディックマイナースケール</option>
-                        <option value="pentatonic_major">メジャーペンタトニック</option>
-                        <option value="pentatonic_minor">マイナーペンタトニック</option>
-                        <option value="blues">ブルーススケール</option>
-                        <option value="dorian">ドリアンスケール</option>
-                        <option value="mixolydian">ミクソリディアンスケール</option>
-                    </select>
-                </div>
-                <button class="control-btn" onclick="playScale()" style="padding: 10px 20px; font-size: 0.9rem; width: 100%;">🎵 スケールを再生</button>
-                <button class="control-btn secondary" onclick="toggleScaleAutoPlay()" id="scale-auto-play-btn" style="padding: 10px 20px; font-size: 0.9rem; width: 100%; margin-top: 8px;">🔄 スケール自動再生</button>
-            </div>
-
-            <div class="mode-section" style="margin-bottom: 15px;">
-                <h3 style="font-size: 1rem; margin-bottom: 10px;">🎵 コードタイプ</h3>
+                <h3 data-i18n="chordType" style="font-size: 1rem; margin-bottom: 10px;">🎵 コードタイプ</h3>
                 <div class="chord-types" style="gap: 4px;">
                     <div class="chord-type selected" data-type="" onclick="toggleChordType('')" style="padding: 5px 8px; font-size: 0.75rem;">Major</div>
                     <div class="chord-type" data-type="m" onclick="toggleChordType('m')" style="padding: 5px 8px; font-size: 0.75rem;">Minor</div>
@@ -758,106 +766,31 @@
                     <div class="chord-type" data-type="dim7" onclick="toggleChordType('dim7')" style="padding: 5px 8px; font-size: 0.75rem;">Dim7</div>
                 </div>
             </div>
-
-            <!-- 再生中のコード表示 + トグル（詳細設定の上） -->
-            <div style="text-align:center; margin: 15px 0;">
-                <label style="user-select:none; cursor:pointer; font-size: 0.85rem;">
-                    <input type="checkbox" id="toggle-played-chord" checked onchange="togglePlayedChordVisibility(this.checked)">
-                    🎯 再生されたコード名を表示
-                </label>
             </div>
-
-            <!-- メトロノーム機能 -->
-            <div class="mode-section" style="margin-bottom: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
-                <h3 style="font-size: 1rem; margin-bottom: 10px;">🥁 メトロノーム</h3>
-                <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <label style="font-size: 0.85rem; min-width: 80px;">拍子:</label>
-                        <select id="metronome-time-signature" onchange="updateMetronomeTimeSignature(this.value)" 
-                                style="flex: 1; padding: 6px; border-radius: 6px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color);">
-                            <option value="2/4">2/4拍子</option>
-                            <option value="3/4">3/4拍子</option>
-                            <option value="4/4" selected>4/4拍子</option>
-                            <option value="5/4">5/4拍子</option>
-                            <option value="6/8">6/8拍子</option>
-                        </select>
-                    </div>
-                    <div style="display: flex; gap: 8px;">
-                        <button class="control-btn" onclick="toggleMetronome()" id="metronome-toggle-btn" 
-                                style="flex: 1; padding: 10px; font-size: 0.9rem;">▶️ メトロノーム開始</button>
-                    </div>
-                    <div id="metronome-beat-display" style="text-align: center; font-size: 2rem; font-weight: bold; color: var(--primary-color); display: none;">
-                        <span id="metronome-beat-number">1</span>
-                    </div>
+            <div id="chord-source-scale" hidden>
+            <div class="mode-section" style="margin-bottom: 15px;">
+                <h3 data-i18n="scaleSelection" style="font-size: 1rem; margin-bottom: 10px;">🎵 スケール選択</h3>
+                <div class="scale-selection" style="display: flex; flex-wrap: wrap; gap: 4px;">
+                    <div class="scale-btn selected" data-scale="C" onclick="toggleScale('C')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--primary-color); color: white; border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">C</div>
+                    <div class="scale-btn" data-scale="Db" onclick="toggleScale('Db')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">D♭</div>
+                    <div class="scale-btn" data-scale="D" onclick="toggleScale('D')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">D</div>
+                    <div class="scale-btn" data-scale="Eb" onclick="toggleScale('Eb')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">E♭</div>
+                    <div class="scale-btn" data-scale="E" onclick="toggleScale('E')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">E</div>
+                    <div class="scale-btn" data-scale="F" onclick="toggleScale('F')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">F</div>
+                    <div class="scale-btn" data-scale="Gb" onclick="toggleScale('Gb')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">G♭</div>
+                    <div class="scale-btn" data-scale="G" onclick="toggleScale('G')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">G</div>
+                    <div class="scale-btn" data-scale="Ab" onclick="toggleScale('Ab')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">A♭</div>
+                    <div class="scale-btn" data-scale="A" onclick="toggleScale('A')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">A</div>
+                    <div class="scale-btn" data-scale="Bb" onclick="toggleScale('Bb')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">B♭</div>
+                    <div class="scale-btn" data-scale="B" onclick="toggleScale('B')" style="padding: 6px 8px; font-size: 0.75rem; min-width: 30px; background: var(--card-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.3s ease;">B</div>
                 </div>
             </div>
-
-            <div class="advanced-settings" style="padding: 15px; margin-top: 10px;">
-                <h3 style="font-size: 1rem; margin-bottom: 12px;">⚙️ 詳細設定</h3>
-                
-                <!-- チェックボックス＆ラジオボタンを最上部に（コンパクト） -->
-                <div style="display: flex; flex-wrap: wrap; gap: 8px 15px; margin-bottom: 15px; font-size: 0.8rem;">
-                    <label style="white-space: nowrap;">
-                        <input type="checkbox" id="enable-arpeggio" onchange="toggleArpeggio(this.checked)">
-                        🎵アルペジオ
-                    </label>
-                    <label style="white-space: nowrap;">
-                        <input type="checkbox" id="enable-root-emphasis" onchange="toggleRootEmphasis(this.checked)">
-                        🎯ルート強調
-                    </label>
-                    <label style="white-space: nowrap;">
-                        <input type="checkbox" id="tts-before-chord" onchange="setTTSTiming(this.checked)">
-                        🗣️コード前TTS
-                    </label>
-                    <label style="white-space: nowrap;">
-                        <input type="checkbox" id="enable-transposition" onchange="toggleTransposition(this.checked)">
-                        🔄転調
-                    </label>
-                    <label style="white-space: nowrap;">
-                        <input type="radio" name="repeat-mode" id="repeat-none" value="none" checked onchange="setRepeatMode(this.value)">
-                        🔁1回
-                    </label>
-                    <label style="white-space: nowrap;">
-                        <input type="radio" name="repeat-mode" id="repeat-2x" value="2x" onchange="setRepeatMode(this.value)">
-                        🔁2回
-                    </label>
-                    <label style="white-space: nowrap;">
-                        <input type="radio" name="repeat-mode" id="repeat-3x" value="3x" onchange="setRepeatMode(this.value)">
-                        🔁3回
-                    </label>
-                </div>
-                
-                <!-- スライダー群（コンパクト） -->
-                <div style="display: flex; flex-direction: column; gap: 6px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <label style="font-size: 0.75rem; flex: 1;">🔊音量</label>
-                        <span id="volume-value" style="font-size: 0.75rem; min-width: 40px; text-align: right;">50%</span>
-                        <input type="range" class="slider" min="1" max="100" value="50" onchange="setVolume(this.value)" style="flex: 2; margin-left: 8px;">
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <label style="font-size: 0.75rem; flex: 1;">🎹オクターブ</label>
-                        <select class="octave-select" onchange="setOctaveMode(this.value)" style="flex: 2; margin-left: 8px;"><option value="low">低</option><option value="mid" selected>中</option><option value="high">高</option><option value="auto">自動（ランダム）</option></select>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <label style="font-size: 0.75rem; flex: 1;" for="tempo-slider">🥁BPM</label>
-                        <span class="tempo-value" style="font-size: 0.75rem; min-width: 40px; text-align: right;">60</span>
-                        <input type="range" class="slider tempo-slider" id="tempo-slider" min="30" max="200" step="1" value="60" oninput="setTempo(this.value)" style="flex: 2; margin-left: 8px;">
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <label style="font-size: 0.75rem; flex: 1;">🎯ルート強調</label>
-                        <span id="root-emphasis-value" style="font-size: 0.75rem; min-width: 40px; text-align: right;">20%</span>
-                        <input type="range" class="slider" min="0" max="100" value="20" onchange="setRootEmphasis(this.value)" style="flex: 2; margin-left: 8px;">
-                    </div>
-                </div>
+                <p class="hint" data-i18n="scaleHint">選んだスケールの中のコードから出題します。</p>
             </div>
         </div>
 
         <!-- Progression Mode Settings -->
         <div class="settings" id="progression-settings" style="padding: 15px; margin-bottom: 15px;">
-            <div class="control-buttons" id="progression-controls" style="margin: 0 0 15px; gap: 8px;">
-                <button class="control-btn" onclick="playProgression()">▶️ 進行を再生</button>
-                <button class="control-btn secondary" id="progression-auto-btn" onclick="toggleProgressionAutoPlay()">🔄 自動進行開始</button>
-            </div>
             <div style="display: flex; align-items: center; gap: 12px; max-width: 480px; margin: 0 auto 15px;">
                 <label for="tempo-slider-progression" style="font-size: 0.9rem; font-weight: 700;">🥁 BPM</label>
                 <input type="range" class="slider tempo-slider" id="tempo-slider-progression" min="30" max="200" step="1" value="60" oninput="setTempo(this.value)" style="flex: 1;">
@@ -868,7 +801,7 @@
                 <select class="octave-select" onchange="setOctaveMode(this.value)" style="flex: 1;"><option value="low">低</option><option value="mid" selected>中</option><option value="high">高</option><option value="auto">自動（ランダム）</option></select>
             </div>
             <div class="mode-section" style="margin-bottom: 15px;">
-                <h3 style="font-size: 1rem; margin-bottom: 10px;">🎼 コード進行パターン</h3>
+                <h3 data-i18n="progressionPattern" style="font-size: 1rem; margin-bottom: 10px;">🎼 コード進行パターン</h3>
                 <div class="chord-types" style="gap: 4px;">
                     <div class="chord-type selected" data-pattern="basic1" onclick="selectProgression('basic1')" style="padding: 5px 8px; font-size: 0.75rem;">I-V-vi-IV</div>
                     <div class="chord-type" data-pattern="basic2" onclick="selectProgression('basic2')" style="padding: 5px 8px; font-size: 0.75rem;">vi-IV-I-V</div>
@@ -907,6 +840,40 @@
             </div>
         </div>
 
+        <!-- Scale Mode -->
+        <div class="settings" id="scale-settings" style="padding: 15px; margin-bottom: 15px;">
+            <div class="mode-section" style="margin-bottom: 15px;">
+                <h3 data-i18n="scaleTitle" style="font-size: 1rem; margin-bottom: 10px;">🎶 スケール練習</h3>
+                <div class="sheet-row">
+                    <label for="scale-type-select" data-i18n="scaleType">種類</label>
+                    <select id="scale-type-select" onchange="saveSettings()" style="flex: 1; min-width: 0;">
+                        <option value="major">メジャースケール</option>
+                        <option value="minor">ナチュラルマイナースケール</option>
+                        <option value="harmonic_minor">ハーモニックマイナースケール</option>
+                        <option value="melodic_minor">メロディックマイナースケール</option>
+                        <option value="pentatonic_major">メジャーペンタトニック</option>
+                        <option value="pentatonic_minor">マイナーペンタトニック</option>
+                        <option value="blues">ブルーススケール</option>
+                        <option value="dorian">ドリアンスケール</option>
+                        <option value="mixolydian">ミクソリディアンスケール</option>
+                    </select>
+                </div>
+                <div class="sheet-row">
+                    <label for="tempo-slider-scale">🥁 BPM</label>
+                    <input type="range" class="slider tempo-slider" id="tempo-slider-scale" min="30" max="200" step="1" value="60" oninput="setTempo(this.value)">
+                    <span class="tempo-value">60</span>
+                </div>
+                <div class="sheet-row">
+                    <label data-i18n="octave">🎹 オクターブ</label>
+                    <select class="octave-select" onchange="setOctaveMode(this.value)"><option value="low">低</option><option value="mid" selected>中</option><option value="high">高</option><option value="auto">自動（ランダム）</option></select>
+                </div>
+            </div>
+            <div class="mode-section" style="margin-bottom: 15px;">
+                <h3 data-i18n="scaleRoot" style="font-size: 1rem; margin-bottom: 10px;">🎹 ルート音</h3>
+                <div class="scale-selection" id="scale-root-keys" style="display: flex; flex-wrap: wrap; gap: 4px;"></div>
+            </div>
+        </div>
+
         <!-- Ear Training Mode -->
         <div class="settings" id="ear-training-settings">
             <div class="mode-section">
@@ -936,12 +903,7 @@
 
                 <div id="et-score" class="et-score" aria-live="polite"></div>
 
-                <div id="ear-training-player" style="text-align: center; margin: 20px 0;">
-                    <button class="control-btn" id="et-play-btn" onclick="playEarTrainingChord()">🎵 問題を再生</button>
-                    <button class="control-btn secondary" id="et-repeat-btn" onclick="repeatEarTrainingChord()">🔄 もう一度</button>
-                </div>
-
-                <div class="chord-types" id="ear-training-options">
+<div class="chord-types" id="ear-training-options">
                     <!-- 選択肢が動的に生成される -->
                 </div>
 
@@ -951,80 +913,7 @@
             </div>
 
             <div class="control-buttons">
-                <button class="control-btn" id="et-next-btn" onclick="nextEarTrainingQuestion()">➡️ 次の問題</button>
                 <button class="control-btn accent" id="et-reset-btn" onclick="resetEarTraining()">🔄 成績リセット</button>
-            </div>
-        </div>
-
-        <!-- Advanced Settings Mode -->
-        <div class="settings" id="advanced-settings">
-            <div class="mode-section">
-                <h3>⚙️ 高度な設定</h3>
-                
-                <!-- ナイトモード切り替えボタン（高度な設定の右側） -->
-                <div style="text-align: right; margin-bottom: 10px;">
-                    <button onclick="toggleTheme()" id="theme-toggle-inline" style="padding: 6px 12px; background: var(--secondary-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; font-size: 0.8rem;">🌙 ナイトモード</button>
-                </div>
-                
-                <div class="advanced-settings">
-                    <h4>🎵 オーディオエンジン設定</h4>
-                    <div class="setting-group">
-                        <div class="slider-control">
-                            <label>🔧 コンプレッサー閾値: <span id="compressor-threshold-value">-20dB</span></label>
-                            <input type="range" class="slider" min="-60" max="0" value="-20" onchange="setCompressorThreshold(this.value)">
-                        </div>
-                        <div class="slider-control">
-                            <label>📊 コンプレッサー比率: <span id="compressor-ratio-value">6:1</span></label>
-                            <input type="range" class="slider" min="1" max="20" value="6" onchange="setCompressorRatio(this.value)">
-                        </div>
-                        <div class="slider-control">
-                            <label>🎛️ フィルター周波数: <span id="filter-frequency-value">1000Hz</span></label>
-                            <input type="range" class="slider" min="20" max="20000" value="1000" onchange="setFilterFrequency(this.value)">
-                        </div>
-                        <div class="slider-control">
-                            <label>📈 フィルターQ値: <span id="filter-q-value">1.0</span></label>
-                            <input type="range" class="slider" min="0.1" max="30" step="0.1" value="1.0" onchange="setFilterQ(this.value)">
-                        </div>
-                    </div>
-
-                    <h4>🎼 コード理論設定</h4>
-                    <div class="setting-group">
-                        <label>
-                            <input type="checkbox" id="enable-inversions" onchange="toggleInversions(this.checked)">
-                            🔄 転回形を含める
-                        </label>
-                        <label>
-                            <input type="checkbox" id="enable-extensions" onchange="toggleExtensions(this.checked)">
-                            🎵 拡張コードを含める
-                        </label>
-                        <label>
-                            <input type="checkbox" id="enable-alterations" onchange="toggleAlterations(this.checked)">
-                            ♯♭ オルタードコードを含める
-                        </label>
-                        <label>
-                            <input type="checkbox" id="enable-poly-chords" onchange="togglePolyChords(this.checked)">
-                            🎭 ポリコードを含める
-                        </label>
-                    </div>
-
-                    <h4>🎯 学習支援機能</h4>
-                    <div class="setting-group">
-                        <div class="slider-control">
-                            <label>🧠 難易度調整: <span id="difficulty-value">中級</span></label>
-                            <input type="range" class="slider" min="1" max="5" value="3" onchange="setDifficulty(this.value)">
-                        </div>
-                        <div class="slider-control">
-                            <label>📚 学習フォーカス</label>
-                            <select onchange="setLearningFocus(this.value)">
-                                <option value="basic">基本コード</option>
-                                <option value="jazz">ジャズハーモニー</option>
-                                <option value="pop">ポップスコード</option>
-                                <option value="classical">クラシック和声</option>
-                                <option value="modal">モーダル和声</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -1073,7 +962,86 @@
             <div id="chord-diagram-content" style="text-align: center;"></div>
         </div>
 
-        <div id="played-chord" class="played-chord" role="status" aria-live="polite" style="display: block;">--</div>
+        <!-- 画面下に固定：コード名と再生ボタン -->
+        <div id="dock" class="dock">
+            <div id="played-chord" class="played-chord" role="status" aria-live="polite" style="display: block;">--</div>
+            <div class="dock-actions" id="random-controls">
+                <button class="control-btn" id="random-play-btn" data-i18n="singlePlay" onclick="playRandomChord()">🎵 再生</button>
+                <button class="control-btn secondary" onclick="toggleAutoPlay()" id="auto-play-btn-main">🔄 自動再生開始</button>
+            </div>
+            <div class="dock-actions" id="progression-controls">
+                <button class="control-btn" id="progression-play-btn" data-i18n="progressionPlay" onclick="playProgression()">▶️ 進行を再生</button>
+                <button class="control-btn secondary" id="progression-auto-btn" onclick="toggleProgressionAutoPlay()">🔄 自動進行開始</button>
+            </div>
+            <div class="dock-actions" id="scale-controls">
+                <button class="control-btn" id="scale-play-btn" data-i18n="scalePlay" onclick="playScale()">🎵 スケールを再生</button>
+                <button class="control-btn secondary" onclick="toggleScaleAutoPlay()" id="scale-auto-play-btn">🔄 スケール自動再生</button>
+            </div>
+            <div class="dock-actions" id="ear-training-controls">
+                <button class="control-btn" id="et-play-btn" onclick="playEarTrainingChord()">🎵 問題を再生</button>
+                <button class="control-btn secondary" id="et-repeat-btn" onclick="repeatEarTrainingChord()">🔄 もう一度</button>
+                <button class="control-btn" id="et-next-btn" onclick="nextEarTrainingQuestion()">➡️ 次の問題</button>
+            </div>
+        </div>
+
+        <!-- どのタブからも開ける設定 -->
+        <div id="settings-backdrop" class="sheet-backdrop" onclick="closeSettings()" hidden></div>
+        <div id="settings-sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+            <div class="sheet-head">
+                <h3 id="settings-title" data-i18n="settingsTitle">⚙️ 設定</h3>
+                <button type="button" class="icon-btn theme-btn" onclick="closeSettings()" aria-label="閉じる">✕</button>
+            </div>
+
+            <div class="sheet-row">
+                <label for="volume-slider" data-i18n="masterVolume">🔊 音量</label>
+                <input type="range" class="slider" id="volume-slider" min="1" max="100" value="50" oninput="setVolume(this.value)">
+                <span id="volume-value">50%</span>
+            </div>
+            <div class="sheet-row">
+                <label for="tempo-slider">🥁 BPM</label>
+                <input type="range" class="slider tempo-slider" id="tempo-slider" min="30" max="200" step="1" value="60" oninput="setTempo(this.value)">
+                <span class="tempo-value">60</span>
+            </div>
+            <div class="sheet-row">
+                <label data-i18n="octave">🎹 オクターブ</label>
+                <select class="octave-select" onchange="setOctaveMode(this.value)"><option value="low">低</option><option value="mid" selected>中</option><option value="high">高</option><option value="auto">自動（ランダム）</option></select>
+            </div>
+
+            <div class="sheet-section" data-i18n="playSection">再生</div>
+            <label class="sheet-check"><input type="checkbox" id="enable-arpeggio" onchange="toggleArpeggio(this.checked)"> <span data-i18n="enableArpeggio">🎵 アルペジオで鳴らす</span></label>
+            <label class="sheet-check"><input type="checkbox" id="tts-before-chord" onchange="setTTSTiming(this.checked)"> <span data-i18n="ttsBeforeChord">🗣️ コードの前に読み上げる</span></label>
+            <label class="sheet-check"><input type="checkbox" id="toggle-played-chord" checked onchange="togglePlayedChordVisibility(this.checked)"> <span data-i18n="displayChord">🎯 コード名を表示する</span></label>
+            <div class="sheet-row">
+                <label data-i18n="repeatMode">🔁 繰り返し</label>
+                <div class="sheet-radios">
+                    <label><input type="radio" name="repeat-mode" id="repeat-none" value="none" checked onchange="setRepeatMode(this.value)"> <span data-i18n="none">1回</span></label>
+                    <label><input type="radio" name="repeat-mode" id="repeat-2x" value="2x" onchange="setRepeatMode(this.value)"> <span data-i18n="twice">2回</span></label>
+                    <label><input type="radio" name="repeat-mode" id="repeat-3x" value="3x" onchange="setRepeatMode(this.value)"> <span data-i18n="three">3回</span></label>
+                </div>
+            </div>
+
+            <div class="sheet-section" data-i18n="metronomeSection">メトロノーム</div>
+            <div class="sheet-row">
+                <label for="metronome-time-signature" data-i18n="timeSignature">拍子</label>
+                <select id="metronome-time-signature" onchange="updateMetronomeTimeSignature(this.value)">
+                    <option value="2/4">2/4</option>
+                    <option value="3/4">3/4</option>
+                    <option value="4/4" selected>4/4</option>
+                    <option value="5/4">5/4</option>
+                    <option value="6/8">6/8</option>
+                </select>
+            </div>
+            <button class="control-btn" onclick="toggleMetronome()" id="metronome-toggle-btn" style="width: 100%;">▶️ メトロノーム開始</button>
+            <div id="metronome-beat-display" style="text-align: center; font-size: 2rem; font-weight: bold; color: var(--primary-color); display: none;">
+                <span id="metronome-beat-number">1</span>
+            </div>
+
+            <div class="sheet-section" data-i18n="otherSection">その他</div>
+            <div class="sheet-actions">
+                <button type="button" id="lang-switch" class="icon-btn" onclick="toggleLanguage()">🌐 English</button>
+                <button type="button" id="toggle-console-btn" class="icon-btn" onclick="toggleMobileConsole()">📋 ログ</button>
+            </div>
+        </div>
         
         <!-- iPhone用ログボタン -->
         <div id="mobile-console" style="display:none; position:fixed; bottom:80px; left:10px; right:10px; background:rgba(0,0,0,0.95); color:#0f0; border:2px solid #0f0; border-radius:8px; padding:10px; max-height:200px; overflow-y:auto; font-family:monospace; font-size:10px; z-index:9999; line-height:1.3;"></div>
@@ -1094,6 +1062,7 @@
     <script>
         // === グローバル変数 ===
         let currentMode = 'random';
+        let chordSource = 'keys'; // 単音コードの出題範囲 'keys' | 'scale'
         let selectedKeys = ['C'];
         let selectedChordTypes = [''];
         let selectedProgressionKeys = ['C'];
@@ -1101,11 +1070,8 @@
         let masterVolume = 0.5;
         let chordDuration = 2.0; // 2拍
         let waveformType = 'sine';
-        let rootEmphasis = 0.2;
         let enableArpeggio = false;
-        let enableRootEmphasisMode = false;
         let ttsBeforeChord = false;
-        let enableTranspositionMode = false;
         let arpeggioDelay = 0.3; // 0.3拍
         let arpeggioSpeed = 0.25; // アルペジオの音間隔（0.25拍）
         let tempo = 60; // BPM。下の時間はすべて setTempo で決まる
@@ -1313,13 +1279,9 @@
             log(`🚀 アプリ初期化開始 - v2024.12.16.3`);
             initializeTheme();
             
-            // コード表示を初期化（デフォルトON）
-            const chordToggle = document.getElementById('toggle-played-chord');
-            if (chordToggle) {
-                chordToggle.checked = true;
-                togglePlayedChordVisibility(true);
-            }
-            
+            // 保存した設定を戻す
+            loadSettings();
+
             // モバイルデバイス判定（iOS/Android）
             const ua = navigator.userAgent || navigator.vendor || window.opera;
             const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -1345,7 +1307,8 @@
             
             // 統計データの読み込み
             loadStatistics();
-            
+            if (currentMode === 'statistics') updateStatisticsDisplay();
+
             // 再生コード表示をクリック可能にしてコード図を表示
             const playedChordElement = document.getElementById('played-chord');
             if (playedChordElement) {
@@ -1367,14 +1330,8 @@
                     log(`📱 モバイルデバイス検出 - オーバーレイ表示`);
                 }
                 
-                // モバイル用デバッグボタンを表示
-                const consoleBtn = document.getElementById('toggle-console-btn');
-                if (consoleBtn) {
-                    consoleBtn.style.display = 'block';
-                    log('📋 モバイルデバッグボタン有効化');
-                }
             }
-            
+
             // デスクトップでもAudioContextがsuspendedなら表示
             setTimeout(() => {
                 if (audioContext && audioContext.state === 'suspended') {
@@ -1474,7 +1431,7 @@
                    }, 100); // UI閉じるのを早める
                    
                    log('✅ 音声有効化完了！（Web Audio + TTS）');
-                   updatePlayedChordLabel('🎵 音声準備OK！コードをタップしてください');
+                   updatePlayedChordLabel('🎵 音声準備OK！');
                 };
 
                 testUtterance.onend = finishInit;
@@ -1561,6 +1518,7 @@
             btn.textContent = mobileConsoleVisible ? '❌ 閉じる' : '📋 ログ';
             
             if (mobileConsoleVisible) {
+                closeSettings();
                 mobileConsole.innerHTML = mobileLogMessages.slice().reverse().join('<br>');
                 log('📋 モバイルコンソール表示');
             }
@@ -1578,6 +1536,7 @@
             const el = document.getElementById('played-chord');
             if (!el) return;
             el.style.display = checked ? 'block' : 'none';
+            saveSettings();
         }
 
         function updatePlayedChordLabel(text) {
@@ -1588,6 +1547,31 @@
         }
 
         // === モード切り替え ===
+        function showMode(mode) {
+            currentMode = mode;
+
+            // ボタンの状態更新
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(`${mode}-mode`).classList.add('active');
+            document.body.dataset.mode = mode;
+
+            // 設定パネルの表示/非表示
+            document.querySelectorAll('.settings').forEach(setting => {
+                setting.classList.remove('show');
+            });
+            const settingsElement = document.getElementById(`${mode}-settings`);
+            if (settingsElement) {
+                settingsElement.classList.add('show');
+            }
+
+            // 統計モードの場合、統計表示を更新
+            if (mode === 'statistics') {
+                updateStatisticsDisplay();
+            }
+        }
+
         function setMode(mode) {
             // モード切り替え時は全ての再生を停止
             if (autoPlayTimer) {
@@ -1601,33 +1585,16 @@
                 currentPlayingMode = null;
                 isProgressionPlaying = false;
             }
+            if (isScaleAutoPlayRunning) {
+                stopScaleAutoPlay();
+            }
             // 鳴っている音と読み上げも止める
             stopAllPlayback();
 
-            currentMode = mode;
             log(`🔄 モード切り替え: ${mode}`);
-            
-            // ボタンの状態更新
-            document.querySelectorAll('.mode-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.getElementById(`${mode}-mode`).classList.add('active');
-            document.body.dataset.mode = mode;
-            
-            // 設定パネルの表示/非表示
-            document.querySelectorAll('.settings').forEach(setting => {
-                setting.classList.remove('show');
-            });
-            const settingsElement = document.getElementById(`${mode}-settings`);
-            if (settingsElement) {
-                settingsElement.classList.add('show');
-            }
-            
-            // 統計モードの場合、統計表示を更新
-            if (mode === 'statistics') {
-                updateStatisticsDisplay();
-            }
-            
+            showMode(mode);
+            saveSettings();
+
             // 自動再生停止
             stopAutoPlay();
             stopProgressionAutoPlay();
@@ -1640,76 +1607,45 @@
         
         const translations = {
             ja: {
-                title: '🎵 Professional Chord Training Tool',
-                subtitle: '高度なコード理論と音響技術を組み合わせた本格的な学習環境',
-                langButton: '🌐 English',
-                singleChord: '🎵 単音コード',
-                chordProgression: '🎼 コード進行',
-                earTraining: '👂 聴音訓練',
-                advancedSettings: '⚙️ 高度な設定',
-                statistics: '📊 練習統計',
-                singlePlay: '🎵 単音再生',
-                autoPlay: '🔄 自動再生開始',
-                audioTest: '🔊 高品質音声テスト',
-                keySelection: '🎹 キー選択',
-                scaleSelection: '🎵 スケール選択',
-                chordType: '🎵 コードタイプ',
-                displayChord: '表示されたコード名',
-                ttsBeforeChord: '🗣️ コード前TTS',
-                enableArpeggio: '🎵 アルペジオ有効',
-                masterVolume: '🔊 マスターボリューム',
-                repeatMode: '🔄 繰り返しモード',
-                none: 'なし',
-                twice: '2回',
-                three: '3回',
-                progressionPattern: '🎼 進行パターン',
-                basic: '基本',
-                jazz: 'Jazz',
-                modernJazz: 'モダンJazz',
-                progressionKey: '🎹 キー選択',
-                randomProgression: '🎲 ランダム進行',
-                showAll: '📋 全表示',
-                continuous: '🔄 連続再生',
-                stop: '⏹️ 停止'
+                title: '🎵 コード聴音トレーニング', subtitle: 'コードを聞き分ける練習アプリ', langButton: '🌐 English',
+                singleChord: '🎵 単音コード', chordProgression: '🎼 コード進行', earTraining: '👂 聴音訓練',
+                scaleTab: '🎶 スケール', statistics: '📊 練習統計',
+                singlePlay: '🎵 再生', autoPlay: '🔄 自動再生開始',
+                progressionPlay: '▶️ 進行を再生', progressionAuto: '🔄 自動進行開始',
+                scalePlay: '🎵 スケールを再生', scaleAuto: '🔄 スケール自動再生',
+                sourceKeys: '🎹 キーから出題', sourceScale: '🎵 スケールから出題',
+                scaleHint: '選んだスケールの中のコードから出題します。',
+                keySelection: '🎹 キー選択', scaleSelection: '🎵 スケール選択', chordType: '🎵 コードタイプ',
+                progressionPattern: '🎼 コード進行パターン',
+                scaleTitle: '🎶 スケール練習', scaleType: '種類', scaleRoot: '🎹 ルート音', octave: '🎹 オクターブ',
+                settingsTitle: '⚙️ 設定', masterVolume: '🔊 音量', playSection: '再生',
+                enableArpeggio: '🎵 アルペジオで鳴らす', ttsBeforeChord: '🗣️ コードの前に読み上げる', displayChord: '🎯 コード名を表示する',
+                repeatMode: '🔁 繰り返し', none: '1回', twice: '2回', three: '3回',
+                metronomeSection: 'メトロノーム', timeSignature: '拍子', otherSection: 'その他'
             },
             en: {
-                title: '🎵 Professional Chord Training Tool',
-                subtitle: 'Advanced chord theory and audio technology combined in a comprehensive learning environment',
-                langButton: '🌐 日本語',
-                singleChord: '🎵 Single Chord',
-                chordProgression: '🎼 Chord Progression',
-                earTraining: '👂 Ear Training',
-                advancedSettings: '⚙️ Advanced Settings',
-                statistics: '📊 Statistics',
-                singlePlay: '🎵 Single Play',
-                autoPlay: '🔄 Auto Play Start',
-                audioTest: '🔊 High Quality Audio Test',
-                keySelection: '🎹 Key Selection',
-                scaleSelection: '🎵 Scale Selection',
-                chordType: '🎵 Chord Type',
-                displayChord: 'Display Played Chord Name',
-                ttsBeforeChord: '🗣️ TTS Before Chord',
-                enableArpeggio: '🎵 Enable Arpeggio',
-                masterVolume: '🔊 Master Volume',
-                repeatMode: '🔄 Repeat Mode',
-                none: 'None',
-                twice: '2x',
-                three: '3x',
+                title: '🎵 Chord Ear Training', subtitle: 'Learn to tell chords apart by ear', langButton: '🌐 日本語',
+                singleChord: '🎵 Single Chord', chordProgression: '🎼 Progression', earTraining: '👂 Ear Training',
+                scaleTab: '🎶 Scale', statistics: '📊 Statistics',
+                singlePlay: '🎵 Play', autoPlay: '🔄 Auto Play',
+                progressionPlay: '▶️ Play', progressionAuto: '🔄 Auto Play',
+                scalePlay: '🎵 Play Scale', scaleAuto: '🔄 Auto Play',
+                sourceKeys: '🎹 From Keys', sourceScale: '🎵 From Scales',
+                scaleHint: 'Chords are picked from the selected scales.',
+                keySelection: '🎹 Keys', scaleSelection: '🎵 Scales', chordType: '🎵 Chord Types',
                 progressionPattern: '🎼 Progression Pattern',
-                basic: 'Basic',
-                jazz: 'Jazz',
-                modernJazz: 'Modern Jazz',
-                progressionKey: '🎹 Key Selection',
-                randomProgression: '🎲 Random Progression',
-                showAll: '📋 Show All',
-                continuous: '🔄 Continuous Play',
-                stop: '⏹️ Stop'
+                scaleTitle: '🎶 Scale Practice', scaleType: 'Type', scaleRoot: '🎹 Root', octave: '🎹 Octave',
+                settingsTitle: '⚙️ Settings', masterVolume: '🔊 Volume', playSection: 'Playback',
+                enableArpeggio: '🎵 Play as arpeggio', ttsBeforeChord: '🗣️ Speak before the chord', displayChord: '🎯 Show the chord name',
+                repeatMode: '🔁 Repeat', none: '1x', twice: '2x', three: '3x',
+                metronomeSection: 'Metronome', timeSignature: 'Time', otherSection: 'Other'
             }
         };
-        
-        function toggleLanguage() {
+
+                function toggleLanguage() {
             currentLanguage = currentLanguage === 'ja' ? 'en' : 'ja';
             updateLanguage();
+            saveSettings();
             log(`🌐 言語切り替え: ${currentLanguage === 'ja' ? '日本語' : 'English'}`);
         }
         
@@ -1721,47 +1657,15 @@
             document.getElementById('main-subtitle').textContent = t.subtitle;
             document.getElementById('lang-switch').textContent = t.langButton;
             
-            // モードボタン
-            const modeButtons = document.querySelectorAll('.mode-btn');
-            if (modeButtons[0]) modeButtons[0].textContent = t.singleChord;
-            if (modeButtons[1]) modeButtons[1].textContent = t.chordProgression;
-            if (modeButtons[2]) modeButtons[2].textContent = t.earTraining;
-            if (modeButtons[3]) modeButtons[3].textContent = t.advancedSettings;
-            if (modeButtons[4]) modeButtons[4].textContent = t.statistics;
-            
-            // コントロールボタン
-            const controlButtons = document.querySelectorAll('.control-btn');
-            if (controlButtons[0]) controlButtons[0].textContent = t.singlePlay;
-            if (controlButtons[1]) controlButtons[1].textContent = t.autoPlay;
-            if (controlButtons[2]) controlButtons[2].textContent = t.audioTest;
-            
-            // セクションタイトル
-            const sectionTitles = document.querySelectorAll('.mode-section h3');
-            if (sectionTitles[0]) sectionTitles[0].textContent = t.keySelection;
-            if (sectionTitles[1]) sectionTitles[1].textContent = t.scaleSelection;
-            if (sectionTitles[2]) sectionTitles[2].textContent = t.chordType;
-            
-            // 設定項目
-            const settingsLabels = document.querySelectorAll('label');
-            settingsLabels.forEach(label => {
-                const text = label.textContent;
-                if (text.includes('表示されたコード名')) label.textContent = text.replace('表示されたコード名', t.displayChord);
-                if (text.includes('コード前TTS')) label.textContent = text.replace('コード前TTS', t.ttsBeforeChord);
-                if (text.includes('アルペジオ有効')) label.textContent = text.replace('アルペジオ有効', t.enableArpeggio);
-                if (text.includes('マスターボリューム')) label.textContent = text.replace('マスターボリューム', t.masterVolume);
-                if (text.includes('繰り返しモード')) label.textContent = text.replace('繰り返しモード', t.repeatMode);
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                el.textContent = t[el.dataset.i18n];
             });
-            
-            // オプション値
-            const options = document.querySelectorAll('option');
-            options.forEach(option => {
-                if (option.value === 'none') option.textContent = t.none;
-                if (option.value === '2x') option.textContent = t.twice;
-                if (option.value === '3x') option.textContent = t.three;
-                if (option.textContent === '基本') option.textContent = t.basic;
-                if (option.textContent === 'Jazz') option.textContent = t.jazz;
-                if (option.textContent === 'モダンJazz') option.textContent = t.modernJazz;
-            });
+
+            // 自動再生のボタンは、止まっているときだけ文字を変える
+            if (!autoPlayTimer) document.getElementById('auto-play-btn-main').textContent = t.autoPlay;
+            if (!progressionTimer) document.getElementById('progression-auto-btn').textContent = t.progressionAuto;
+            if (!isScaleAutoPlayRunning) document.getElementById('scale-auto-play-btn').textContent = t.scaleAuto;
+
             if (typeof updateEarTrainingLanguage === 'function') updateEarTrainingLanguage();
         }
 
@@ -1771,6 +1675,7 @@
             const keyElement = document.querySelector(`#random-settings [data-key="${key}"]`);
             
             if (selectedKeys.includes(key)) {
+                if (selectedKeys.length === 1) return; // 最低1つのキーは選択状態を維持
                 selectedKeys = selectedKeys.filter(k => k !== key);
                 keyElement.classList.remove('selected');
             } else {
@@ -1779,6 +1684,7 @@
             }
             
             log(`🎹 選択中のキー: ${selectedKeys.join(', ')}`);
+            saveSettings();
         }
 
         // === スケール選択 ===
@@ -1789,6 +1695,7 @@
             const scaleElement = document.querySelector(`#random-settings [data-scale="${scale}"]`);
             
             if (selectedScales.includes(scale)) {
+                if (selectedScales.length === 1) return; // 最低1つのスケールは選択状態を維持
                 selectedScales = selectedScales.filter(s => s !== scale);
                 scaleElement.classList.remove('selected');
                 scaleElement.style.background = 'var(--card-color)';
@@ -1801,6 +1708,137 @@
             }
             
             log(`🎵 選択中のスケール: ${selectedScales.join(', ')}`);
+            saveSettings();
+        }
+
+        // 単音コードの出題範囲（キーから / スケールから）
+        function setChordSource(source) {
+            chordSource = source;
+            document.getElementById('source-keys').classList.toggle('selected', source === 'keys');
+            document.getElementById('source-scale').classList.toggle('selected', source === 'scale');
+            document.getElementById('chord-source-keys').hidden = source !== 'keys';
+            document.getElementById('chord-source-scale').hidden = source !== 'scale';
+            log(`🎯 出題範囲: ${source}`);
+            saveSettings();
+        }
+
+        // スケールタブのルート音（1つだけ選ぶ）
+        const SCALE_ROOTS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+        let scaleRoot = 'C';
+
+        function setScaleRoot(root) {
+            scaleRoot = root;
+            document.querySelectorAll('#scale-root-keys .scale-btn').forEach(btn => {
+                btn.classList.toggle('selected', btn.dataset.root === root);
+            });
+            log(`🎹 スケールのルート音: ${root}`);
+            saveSettings();
+        }
+
+        // === 設定シート ===
+        function openSettings() {
+            document.getElementById('settings-backdrop').hidden = false;
+            document.getElementById('settings-sheet').hidden = false;
+        }
+
+        function closeSettings() {
+            document.getElementById('settings-backdrop').hidden = true;
+            document.getElementById('settings-sheet').hidden = true;
+        }
+
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') closeSettings();
+        });
+
+        // === 設定の保存 ===
+        const SETTINGS_KEY = 'chordAppSettings';
+
+        function saveSettings() {
+            try {
+                localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+                    mode: currentMode, language: currentLanguage,
+                    chordSource, selectedKeys, selectedScales, selectedChordTypes,
+                    selectedProgressionKeys, currentPattern,
+                    scaleRoot, scaleType: document.getElementById('scale-type-select').value,
+                    volume: Math.round(masterVolume * 100), tempo, octaveMode,
+                    enableArpeggio, ttsBeforeChord, repeatMode, showPlayedChord,
+                    metronomeTimeSignature
+                }));
+            } catch (e) { /* 保存できない環境では無視 */ }
+        }
+
+        function loadSettings() {
+            // スケールタブのルート音ボタンを作る
+            const rootBox = document.getElementById('scale-root-keys');
+            SCALE_ROOTS.forEach(root => {
+                const btn = document.createElement('div');
+                btn.className = 'scale-btn';
+                btn.dataset.root = root;
+                btn.textContent = root.replace('b', '♭');
+                btn.onclick = () => setScaleRoot(root);
+                rootBox.appendChild(btn);
+            });
+
+            let d = null;
+            try {
+                d = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+            } catch (e) { /* 読めない場合は初期値 */ }
+            if (!d) {
+                setScaleRoot('C');
+                return;
+            }
+            const has = (selector) => document.querySelector(selector) !== null;
+            const pick = (list, selector, fallback) => {
+                const valid = Array.isArray(list) ? list.filter(v => typeof v === 'string' && has(selector(v))) : [];
+                return valid.length > 0 ? valid : fallback;
+            };
+
+            selectedKeys = pick(d.selectedKeys, v => `#random-settings [data-key="${v}"]`, selectedKeys);
+            selectedScales = pick(d.selectedScales, v => `#random-settings [data-scale="${v}"]`, selectedScales);
+            // コードタイプは0個でも「全タイプ」として動く
+            if (Array.isArray(d.selectedChordTypes)) {
+                selectedChordTypes = d.selectedChordTypes.filter(v => typeof v === 'string' && has(`#random-settings [data-type="${v}"]`));
+            }
+            selectedProgressionKeys = pick(d.selectedProgressionKeys, v => `#progression-settings [data-key="${v}"]`, selectedProgressionKeys);
+            if (d.currentPattern in advancedProgressions) currentPattern = d.currentPattern;
+            if (d.language === 'en') currentLanguage = 'en';
+            enableArpeggio = d.enableArpeggio === true;
+            ttsBeforeChord = d.ttsBeforeChord === true;
+            if (['none', '2x', '3x'].includes(d.repeatMode)) repeatMode = d.repeatMode;
+            if (typeof d.metronomeTimeSignature === 'string' && has(`#metronome-time-signature option[value="${d.metronomeTimeSignature}"]`)) {
+                metronomeTimeSignature = d.metronomeTimeSignature;
+            }
+
+            // 画面に反映
+            const mark = (selector, isOn) => document.querySelectorAll(selector).forEach(el => el.classList.toggle('selected', isOn(el)));
+            mark('#random-settings [data-key]', el => selectedKeys.includes(el.dataset.key));
+            mark('#random-settings [data-scale]', el => selectedScales.includes(el.dataset.scale));
+            mark('#random-settings [data-type]', el => selectedChordTypes.includes(el.dataset.type));
+            mark('#progression-settings [data-key]', el => selectedProgressionKeys.includes(el.dataset.key));
+            mark('[data-pattern]', el => el.dataset.pattern === currentPattern);
+            document.getElementById('enable-arpeggio').checked = enableArpeggio;
+            document.getElementById('tts-before-chord').checked = ttsBeforeChord;
+            document.getElementById(`repeat-${repeatMode}`).checked = true;
+            document.getElementById('metronome-time-signature').value = metronomeTimeSignature;
+            if (typeof d.scaleType === 'string' && has(`#scale-type-select option[value="${d.scaleType}"]`)) {
+                document.getElementById('scale-type-select').value = d.scaleType;
+            }
+            const volume = Number(d.volume);
+            if (volume >= 1 && volume <= 100) {
+                setVolume(volume);
+                document.getElementById('volume-slider').value = volume;
+            }
+            const savedTempo = Number(d.tempo);
+            if (savedTempo >= 30 && savedTempo <= 200) setTempo(savedTempo);
+            if (['low', 'mid', 'high', 'auto'].includes(d.octaveMode)) setOctaveMode(d.octaveMode);
+            const showChord = d.showPlayedChord !== false;
+            document.getElementById('toggle-played-chord').checked = showChord;
+            togglePlayedChordVisibility(showChord);
+            setChordSource(d.chordSource === 'scale' ? 'scale' : 'keys');
+            setScaleRoot(SCALE_ROOTS.includes(d.scaleRoot) ? d.scaleRoot : 'C');
+            if (['random', 'progression', 'ear-training', 'scale', 'statistics'].includes(d.mode)) showMode(d.mode);
+            if (currentLanguage === 'en') updateLanguage();
+            saveSettings();
         }
 
         function toggleProgressionKey(key) {
@@ -1823,12 +1861,13 @@
             }
             
             log(`🎼 選択中の進行キー: ${selectedProgressionKeys.join(', ')}`);
+            saveSettings();
         }
 
         // === コードタイプ選択 ===
         function toggleChordType(type) {
             log(`🎵 コードタイプ切り替え: ${type || 'メジャー'}`);
-            const typeElement = document.querySelector(`[data-type="${type}"]`);
+            const typeElement = document.querySelector(`#random-settings [data-type="${type}"]`);
             
             if (selectedChordTypes.includes(type)) {
                 selectedChordTypes = selectedChordTypes.filter(t => t !== type);
@@ -1839,6 +1878,7 @@
             }
             
             log(`🎵 選択中のコードタイプ: ${selectedChordTypes.join(', ')}`);
+            saveSettings();
         }
 
         // === 進行選択 ===
@@ -1852,6 +1892,7 @@
             document.querySelector(`[data-pattern="${pattern}"]`).classList.add('selected');
             
             log(`🎼 選択された進行: ${advancedProgressions[pattern].name}`);
+            saveSettings();
         }
 
         // === 詳細設定 ===
@@ -1859,6 +1900,7 @@
             masterVolume = value / 100;
             document.getElementById('volume-value').textContent = `${value}%`;
             log(`🔊 音量設定: ${value}% (masterVolume=${masterVolume})`);
+            saveSettings();
         }
 
         function setWaveform(value) {
@@ -1866,17 +1908,12 @@
             log(`🎵 波形タイプ設定: ${value}`);
         }
 
-        function setRootEmphasis(value) {
-            rootEmphasis = value / 100;
-            document.getElementById('root-emphasis-value').textContent = `${value}%`;
-            log(`🎯 ルート音強調: ${value}%`);
-        }
-
         function setOctaveMode(value) {
             octaveMode = value;
             lastAutoOctave = null;
             document.querySelectorAll('.octave-select').forEach(el => { el.value = value; });
             log(`🎹 オクターブ: ${value}`);
+            saveSettings();
         }
 
         // 今回鳴らすオクターブ（-1, 0, +1）。自動のときは同じ高さが続かないようにする
@@ -1898,6 +1935,7 @@
             document.querySelectorAll('.tempo-value').forEach(el => { el.textContent = `${tempo}`; });
             document.querySelectorAll('.tempo-slider').forEach(el => { el.value = tempo; });
             log(`🥁 BPM: ${tempo}`);
+            saveSettings();
             
             // メトロノームが実行中の場合は再起動（スライダーを動かしている間は待つ）
             clearTimeout(tempoRestartTimer);
@@ -1912,73 +1950,19 @@
         function toggleArpeggio(checked) {
             enableArpeggio = checked;
             log(`🎵 アルペジオモード: ${checked ? 'ON' : 'OFF'}`);
-        }
-
-        function toggleRootEmphasis(checked) {
-            enableRootEmphasisMode = checked;
-            log(`🎯 ルート音強調モード: ${checked ? 'ON' : 'OFF'}`);
+            saveSettings();
         }
 
         function setTTSTiming(checked) {
             ttsBeforeChord = checked;
             log(`🗣️ TTS タイミング: ${checked ? 'コード前' : 'コード後'}`);
-        }
-
-        function toggleTransposition(checked) {
-            enableTranspositionMode = checked;
-            log(`🔄 転調モード: ${checked ? 'ON' : 'OFF'}`);
+            saveSettings();
         }
 
         function setRepeatMode(mode) {
             repeatMode = mode;
             log(`🔁 再生モード: ${mode === 'none' ? '1回' : mode === '2x' ? '2回' : '3回'}再生`);
-        }
-
-        // === 高度な設定 ===
-        function setCompressorThreshold(value) {
-            document.getElementById('compressor-threshold-value').textContent = `${value}dB`;
-            log(`🔧 コンプレッサー閾値: ${value}dB`);
-        }
-
-        function setCompressorRatio(value) {
-            document.getElementById('compressor-ratio-value').textContent = `${value}:1`;
-            log(`📊 コンプレッサー比率: ${value}:1`);
-        }
-
-        function setFilterFrequency(value) {
-            document.getElementById('filter-frequency-value').textContent = `${value}Hz`;
-            log(`🎛️ フィルター周波数: ${value}Hz`);
-        }
-
-        function setFilterQ(value) {
-            document.getElementById('filter-q-value').textContent = `${value}`;
-            log(`📈 フィルターQ値: ${value}`);
-        }
-
-        function setDifficulty(value) {
-            const levels = ['初級', '初中級', '中級', '中上級', '上級'];
-            document.getElementById('difficulty-value').textContent = levels[value - 1];
-            log(`🧠 難易度: ${levels[value - 1]}`);
-        }
-
-        function setLearningFocus(value) {
-            log(`📚 学習フォーカス: ${value}`);
-        }
-
-        function toggleInversions(checked) {
-            log(`🔄 転回形: ${checked ? 'ON' : 'OFF'}`);
-        }
-
-        function toggleExtensions(checked) {
-            log(`🎵 拡張コード: ${checked ? 'ON' : 'OFF'}`);
-        }
-
-        function toggleAlterations(checked) {
-            log(`♯♭ オルタードコード: ${checked ? 'ON' : 'OFF'}`);
-        }
-
-        function togglePolyChords(checked) {
-            log(`🎭 ポリコード: ${checked ? 'ON' : 'OFF'}`);
+            saveSettings();
         }
 
         // === 音声合成（改善版・排他制御付き） ===
@@ -2690,11 +2674,7 @@
                         oscillator.frequency.setValueAtTime(freq, ctx.currentTime);
                         oscillator.type = waveformType;
 
-                        let volume = (0.3 / noteCount) * masterVolume * 2;
-                        
-                        if (enableRootEmphasisMode && index === 0) {
-                            volume *= (1 + rootEmphasis);
-                        }
+                        const volume = (0.3 / noteCount) * masterVolume * 2;
                         
                         gainNode.gain.setValueAtTime(0, ctx.currentTime);
                         gainNode.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.01);
@@ -2783,15 +2763,14 @@
         
         // === スケール再生機能 ===
         async function playScale() {
-            if (selectedScales.length === 0) {
-                log('❌ スケールが選択されていません');
-                return;
-            }
-            
+            // 前の音が残っていたら止めてから鳴らす
+            stopAllPlayback();
+            const token = playbackToken;
+
             const scaleType = document.getElementById('scale-type-select').value;
-            const rootScale = selectedScales[0]; // 最初に選択されたスケールを使用
-            
-            log(`🎼 スケール再生開始: ${rootScale} ${scaleType}`);
+            const rootScale = scaleRoot;
+
+                        log(`🎼 スケール再生開始: ${rootScale} ${scaleType}`);
             
             const pattern = scalePatterns[scaleType];
             if (!pattern) {
@@ -2810,6 +2789,7 @@
             
             // スケールの各音を順番に再生
             for (let i = 0; i < pattern.length; i++) {
+                if (token !== playbackToken) return;
                 const semitoneOffset = pattern[i];
                 const totalSemitones = rootIndex + semitoneOffset;
                 const noteIndex = totalSemitones % 12;
@@ -2887,11 +2867,6 @@
         
         // スケール自動再生開始
         function startScaleAutoPlay() {
-            if (selectedScales.length === 0) {
-                log('❌ スケールが選択されていません');
-                return;
-            }
-            
             isScaleAutoPlayRunning = true;
             const btn = document.getElementById('scale-auto-play-btn');
             if (btn) {
@@ -2940,6 +2915,7 @@
         
         function updateMetronomeTimeSignature(value) {
             metronomeTimeSignature = value;
+            saveSettings();
             metronomeBeat = 0;
             
             // メトロノームが実行中の場合は再起動
@@ -3073,14 +3049,6 @@
                 return;
             }
             
-            // キーまたはスケールのいずれかが選択されていれば動作
-            if (selectedKeys.length === 0 && selectedScales.length === 0) {
-                log('❌ キーまたはスケールが選択されていません');
-                return;
-            }
-            
-            log(`✅ playRandomChord条件チェック完了: selectedKeys=${selectedKeys.length}, selectedScales=${selectedScales.length}`);
-
             // 前の音と読み上げが残っていたら止めてから鳴らす
             stopAllPlayback();
             const token = playbackToken;
@@ -3096,7 +3064,7 @@
             
             // 利用可能なコードリストを事前に生成（重複排除）
             let availableChords = [];
-            if (selectedKeys.length > 0) {
+            if (chordSource === 'keys') {
                 selectedKeys.forEach(key => {
                     availableChordTypes.forEach(type => {
                         const chord = key + type;
@@ -3120,7 +3088,7 @@
             
             // 利用可能なコードがない場合は、lastPlayedChordの制約を解除
             if (availableChords.length === 0) {
-                if (selectedKeys.length > 0) {
+                if (chordSource === 'keys') {
                     selectedKeys.forEach(key => {
                         availableChordTypes.forEach(type => {
                             availableChords.push({key: key, type: type, name: key + type});
@@ -3368,17 +3336,6 @@
             }
         }
 
-        function transposeProgression() {
-            if (enableTranspositionMode) {
-                const randomKey = ['C', 'D', 'E', 'F', 'G', 'A', 'B'][Math.floor(Math.random() * 7)];
-                selectedProgressionKeys = [randomKey];
-                log(`🔄 転調: ${randomKey}キー`);
-                playProgression();
-            } else {
-                playProgression();
-            }
-        }
-
         // === 自動再生機能 ===
         function toggleAutoPlay() {
             log(`🔄 toggleAutoPlay関数呼び出し`);
@@ -3420,15 +3377,6 @@
                 log('❌ コード進行モード実行中のため自動再生開始不可');
                 return;
             }
-            
-            // キーまたはスケールのいずれかが選択されていれば動作
-            if (selectedKeys.length === 0 && selectedScales.length === 0) {
-                log('❌ キーまたはスケールが選択されていません');
-                log(`🔍 詳細: selectedKeys=[${selectedKeys.join(', ')}], selectedScales=[${selectedScales.join(', ')}]`);
-                return;
-            }
-            
-            log(`✅ 自動再生条件チェック完了: selectedKeys=${selectedKeys.length}, selectedScales=${selectedScales.length}`);
             
             // 4拍で1サイクル。読み上げなどが終わっていなければ、終わった次の拍まで待つ
             const CYCLE_BEATS = 4;
@@ -4019,14 +3967,6 @@
         // === シンプルなテスト機能のみ（ゲーミフィケーション削除済み） ===
 
         // === テスト機能 ===
-        function testAdvancedAudio() {
-            log(`🔊 testAdvancedAudio関数呼び出し`);
-            log('🔊 高品質音声テスト開始');
-            const testChord = 'Cmaj7';
-            const frequencies = getChordFrequencies('C', 'maj7');
-            playAdvancedChord(frequencies, testChord);
-        }
-        
         // === モバイルコンソール機能 ===（toggleMobileConsoleは上で定義済み）
 
         // シンプルなボタンクリック検出
@@ -4066,39 +4006,29 @@
         // === グローバル関数の公開 ===
         window.setMode = setMode;
         window.toggleKey = toggleKey;
+        window.setChordSource = setChordSource;
+        window.setScaleRoot = setScaleRoot;
+        window.openSettings = openSettings;
+        window.closeSettings = closeSettings;
+        window.saveSettings = saveSettings;
         window.toggleProgressionKey = toggleProgressionKey;
         window.toggleChordType = toggleChordType;
         window.selectProgression = selectProgression;
         window.setVolume = setVolume;
         window.setWaveform = setWaveform;
-        window.setRootEmphasis = setRootEmphasis;
         window.setTempo = setTempo;
         window.setOctaveMode = setOctaveMode;
         window.toggleArpeggio = toggleArpeggio;
-        window.toggleRootEmphasis = toggleRootEmphasis;
         window.setTTSTiming = setTTSTiming;
-        window.toggleTransposition = toggleTransposition;
         window.playRandomChord = playRandomChord;
         window.playProgression = playProgression;
-        window.transposeProgression = transposeProgression;
         window.toggleAutoPlay = toggleAutoPlay;
         window.toggleProgressionAutoPlay = toggleProgressionAutoPlay;
-        window.testAdvancedAudio = testAdvancedAudio;
         window.toggleTheme = toggleTheme;
         window.playEarTrainingChord = playEarTrainingChord;
         window.repeatEarTrainingChord = repeatEarTrainingChord;
         window.nextEarTrainingQuestion = nextEarTrainingQuestion;
         window.resetEarTraining = resetEarTraining;
-        window.setCompressorThreshold = setCompressorThreshold;
-        window.setCompressorRatio = setCompressorRatio;
-        window.setFilterFrequency = setFilterFrequency;
-        window.setFilterQ = setFilterQ;
-        window.setDifficulty = setDifficulty;
-        window.setLearningFocus = setLearningFocus;
-        window.toggleInversions = toggleInversions;
-        window.toggleExtensions = toggleExtensions;
-        window.toggleAlterations = toggleAlterations;
-        window.togglePolyChords = togglePolyChords;
         window.unlockIosAudio = unlockIosAudio;
         window.togglePlayedChordVisibility = togglePlayedChordVisibility;
         window.showMobileLogs = showMobileLogs;
