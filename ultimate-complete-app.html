@@ -538,7 +538,7 @@
         button.chord-type.et-wrong, button.chord-type.et-wrong:hover { background: var(--accent-color); border-color: var(--accent-color); color: #fff; opacity: 1; }
         /* 画面下の固定表示（再生中のコード名）がコンテンツに重ならないよう余白を確保 */
         body {
-            padding-bottom: calc(130px + env(safe-area-inset-bottom, 0px));
+            padding-bottom: calc(170px + env(safe-area-inset-bottom, 0px));
         }
         /* 画面下いっぱいの帯：コード名と再生ボタンをいつでも押せる位置に置く */
         .dock {
@@ -553,20 +553,29 @@
             padding: 6px 16px; font-size: 1.05rem;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        .dock-top { display: flex; align-items: center; gap: 10px; max-width: 800px; margin: 0 auto; padding: 4px 10px; }
-        .dock-top .played-chord { flex: 1 1 0; width: auto; padding: 0; }
-        .dock-bpm { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 6px; min-height: 40px; font-size: 0.8rem; font-weight: 700; }
-        .dock-bpm label { white-space: nowrap; }
-        .dock-bpm .slider { flex: 1 1 0; min-width: 0; margin: 0; }
-        .dock-bpm .tempo-value { flex: 0 0 2em; text-align: right; }
-        body[data-mode="statistics"] .dock-bpm { display: none; }
+        .dock-top { display: flex; align-items: center; gap: 8px; max-width: 800px; margin: 0 auto; padding: 4px 10px 0; min-height: 40px; }
+        .dock-top .played-chord { flex: 1 1 0; min-width: 0; width: auto; padding: 0; text-align: left; }
+        .dock-chips { display: flex; gap: 6px; margin-left: auto; flex-shrink: 0; }
+        .dock-chip {
+            display: none; font: inherit; font-size: 0.78rem; font-weight: 700; min-height: 34px; padding: 4px 10px; border-radius: 999px;
+            border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); cursor: pointer;
+            white-space: nowrap; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+        }
+        .dock-chip.on { background: var(--accent-color); border-color: var(--accent-color); color: #fff; }
+        body[data-mode="random"] #arpeggio-chip, body[data-mode="ear-training"] #arpeggio-chip,
+        body[data-mode="random"] #repeat-chip { display: inline-block; }
+        .dock-sliders { display: flex; gap: 12px; max-width: 800px; margin: 0 auto; padding: 0 10px 4px; }
+        .dock-slider { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 5px; min-height: 36px; font-size: 0.78rem; font-weight: 700; }
+        .dock-slider .slider { flex: 1 1 0; min-width: 0; margin: 0; }
+        .dock-slider span { flex: 0 0 2.3em; text-align: right; }
+        body[data-mode="statistics"] .dock-sliders { display: none; }
         .dock-actions { display: none; gap: 8px; max-width: 800px; margin: 0 auto; padding: 0 10px 10px; }
         .dock-actions .control-btn {
             flex: 1 1 0 !important; min-width: 0 !important; margin: 0;
             padding: 8px 6px !important; font-size: 0.9rem !important; white-space: normal !important;
         }
         #mobile-console {
-            bottom: calc(120px + env(safe-area-inset-bottom, 0px)) !important;
+            bottom: calc(160px + env(safe-area-inset-bottom, 0px)) !important;
         }
 
         /* ===== 見た目・使いやすさの調整（2026/10/30） ===== */
@@ -964,10 +973,21 @@
         <div id="dock" class="dock">
             <div class="dock-top">
                 <div id="played-chord" class="played-chord" role="status" aria-live="polite" style="display: block;">--</div>
-                <div class="dock-bpm">
-                    <label for="tempo-slider-dock">🥁 BPM</label>
+                <div class="dock-chips">
+                    <button type="button" class="dock-chip" id="arpeggio-chip" aria-pressed="false" onclick="toggleArpeggio(!enableArpeggio)">🎵 アルペジオ</button>
+                    <button type="button" class="dock-chip" id="repeat-chip" onclick="cycleRepeatMode()">🔁 1回</button>
+                </div>
+            </div>
+            <div class="dock-sliders">
+                <div class="dock-slider">
+                    <label for="tempo-slider-dock">BPM</label>
                     <input type="range" class="slider tempo-slider" id="tempo-slider-dock" min="30" max="200" step="1" value="60" oninput="setTempo(this.value)">
                     <span class="tempo-value">60</span>
+                </div>
+                <div class="dock-slider">
+                    <label for="volume-slider" aria-label="音量">🔊</label>
+                    <input type="range" class="slider" id="volume-slider" min="1" max="100" value="50" oninput="setVolume(this.value)">
+                    <span id="volume-value">50%</span>
                 </div>
             </div>
             <div class="dock-actions" id="random-controls">
@@ -998,34 +1018,20 @@
             </div>
 
             <div class="sheet-row">
-                <label for="volume-slider" data-i18n="masterVolume">🔊 音量</label>
-                <input type="range" class="slider" id="volume-slider" min="1" max="100" value="50" oninput="setVolume(this.value)">
-                <span id="volume-value">50%</span>
-            </div>
-            <div class="sheet-row">
-                <label for="tempo-slider">🥁 BPM</label>
-                <input type="range" class="slider tempo-slider" id="tempo-slider" min="30" max="200" step="1" value="60" oninput="setTempo(this.value)">
-                <span class="tempo-value">60</span>
-            </div>
-            <div class="sheet-row">
                 <label data-i18n="octave">🎹 オクターブ</label>
                 <select class="octave-select" onchange="setOctaveMode(this.value)"><option value="low">低</option><option value="mid" selected>中</option><option value="high">高</option><option value="auto">自動（ランダム）</option></select>
             </div>
 
             <div class="sheet-section" data-i18n="playSection">再生</div>
-            <label class="sheet-check"><input type="checkbox" id="enable-arpeggio" onchange="toggleArpeggio(this.checked)"> <span data-i18n="enableArpeggio">🎵 アルペジオで鳴らす</span></label>
             <label class="sheet-check"><input type="checkbox" id="tts-before-chord" onchange="setTTSTiming(this.checked)"> <span data-i18n="ttsBeforeChord">🗣️ コードの前に読み上げる</span></label>
             <label class="sheet-check"><input type="checkbox" id="toggle-played-chord" checked onchange="togglePlayedChordVisibility(this.checked)"> <span data-i18n="displayChord">🎯 コード名を表示する</span></label>
-            <div class="sheet-row">
-                <label data-i18n="repeatMode">🔁 繰り返し</label>
-                <div class="sheet-radios">
-                    <label><input type="radio" name="repeat-mode" id="repeat-none" value="none" checked onchange="setRepeatMode(this.value)"> <span data-i18n="none">1回</span></label>
-                    <label><input type="radio" name="repeat-mode" id="repeat-2x" value="2x" onchange="setRepeatMode(this.value)"> <span data-i18n="twice">2回</span></label>
-                    <label><input type="radio" name="repeat-mode" id="repeat-3x" value="3x" onchange="setRepeatMode(this.value)"> <span data-i18n="three">3回</span></label>
-                </div>
-            </div>
 
             <div class="sheet-section" data-i18n="metronomeSection">メトロノーム</div>
+            <div class="sheet-row">
+                <label for="tempo-slider">🥁 BPM</label>
+                <input type="range" class="slider tempo-slider" id="tempo-slider" min="30" max="200" step="1" value="60" oninput="setTempo(this.value)">
+                <span class="tempo-value">60</span>
+            </div>
             <div class="sheet-row">
                 <label for="metronome-time-signature" data-i18n="timeSignature">拍子</label>
                 <select id="metronome-time-signature" onchange="updateMetronomeTimeSignature(this.value)">
@@ -1623,9 +1629,9 @@
                 scaleSelection: '🎵 キーで選ぶ', directChords: '🎹 コードを直接選ぶ', keySelection: '🎹 ルート音', chordType: '🎶 コードタイプ',
                 progressionPattern: '🎼 コード進行パターン',
                 scaleTitle: '🎶 スケール練習', scaleType: '種類', scaleRoot: '🎹 ルート音', octave: '🎹 オクターブ',
-                settingsTitle: '⚙️ 設定', masterVolume: '🔊 音量', playSection: '再生',
-                enableArpeggio: '🎵 アルペジオで鳴らす', ttsBeforeChord: '🗣️ コードの前に読み上げる', displayChord: '🎯 コード名を表示する',
-                repeatMode: '🔁 繰り返し', none: '1回', twice: '2回', three: '3回',
+                settingsTitle: '⚙️ 設定', playSection: '再生',
+                arpeggioChip: '🎵 アルペジオ', repeatChip: (count) => `🔁 ${count}回`,
+                ttsBeforeChord: '🗣️ コードの前に読み上げる', displayChord: '🎯 コード名を表示する',
                 metronomeSection: 'メトロノーム', timeSignature: '拍子', otherSection: 'その他'
             },
             en: {
@@ -1641,9 +1647,9 @@
                 scaleSelection: '🎵 Pick a key', directChords: '🎹 Pick chords directly', keySelection: '🎹 Roots', chordType: '🎶 Chord Types',
                 progressionPattern: '🎼 Progression Pattern',
                 scaleTitle: '🎶 Scale Practice', scaleType: 'Type', scaleRoot: '🎹 Root', octave: '🎹 Octave',
-                settingsTitle: '⚙️ Settings', masterVolume: '🔊 Volume', playSection: 'Playback',
-                enableArpeggio: '🎵 Play as arpeggio', ttsBeforeChord: '🗣️ Speak before the chord', displayChord: '🎯 Show the chord name',
-                repeatMode: '🔁 Repeat', none: '1x', twice: '2x', three: '3x',
+                settingsTitle: '⚙️ Settings', playSection: 'Playback',
+                arpeggioChip: '🎵 Arpeggio', repeatChip: (count) => `🔁 ${count}x`,
+                ttsBeforeChord: '🗣️ Speak before the chord', displayChord: '🎯 Show the chord name',
                 metronomeSection: 'Metronome', timeSignature: 'Time', otherSection: 'Other'
             }
         };
@@ -1673,6 +1679,7 @@
             if (!isScaleAutoPlayRunning) document.getElementById('scale-auto-play-btn').textContent = t.scaleAuto;
 
             updateChordRangeHint();
+            updateDockChips();
             if (typeof updateEarTrainingLanguage === 'function') updateEarTrainingLanguage();
         }
 
@@ -1859,9 +1866,8 @@
             mark('#random-settings [data-type]', el => selectedChordTypes.includes(el.dataset.type));
             mark('#progression-settings [data-key]', el => selectedProgressionKeys.includes(el.dataset.key));
             mark('[data-pattern]', el => el.dataset.pattern === currentPattern);
-            document.getElementById('enable-arpeggio').checked = enableArpeggio;
+            updateDockChips();
             document.getElementById('tts-before-chord').checked = ttsBeforeChord;
-            document.getElementById(`repeat-${repeatMode}`).checked = true;
             document.getElementById('metronome-time-signature').value = metronomeTimeSignature;
             if (typeof d.scaleType === 'string' && has(`#scale-type-select option[value="${d.scaleType}"]`)) {
                 document.getElementById('scale-type-select').value = d.scaleType;
@@ -1998,6 +2004,7 @@
 
         function toggleArpeggio(checked) {
             enableArpeggio = checked;
+            updateDockChips();
             log(`🎵 アルペジオモード: ${checked ? 'ON' : 'OFF'}`);
             saveSettings();
         }
@@ -2008,8 +2015,25 @@
             saveSettings();
         }
 
+        // 帯のボタンを押すたびに 1回 → 2回 → 3回 → 1回
+        function cycleRepeatMode() {
+            setRepeatMode({ none: '2x', '2x': '3x', '3x': 'none' }[repeatMode]);
+        }
+
+        function updateDockChips() {
+            const t = translations[currentLanguage];
+            const arpeggio = document.getElementById('arpeggio-chip');
+            arpeggio.textContent = t.arpeggioChip;
+            arpeggio.classList.toggle('on', enableArpeggio);
+            arpeggio.setAttribute('aria-pressed', enableArpeggio);
+            const repeat = document.getElementById('repeat-chip');
+            repeat.textContent = t.repeatChip({ none: 1, '2x': 2, '3x': 3 }[repeatMode]);
+            repeat.classList.toggle('on', repeatMode !== 'none');
+        }
+
         function setRepeatMode(mode) {
             repeatMode = mode;
+            updateDockChips();
             log(`🔁 再生モード: ${mode === 'none' ? '1回' : mode === '2x' ? '2回' : '3回'}再生`);
             saveSettings();
         }
@@ -4013,6 +4037,7 @@
         window.setTempo = setTempo;
         window.setOctaveMode = setOctaveMode;
         window.toggleArpeggio = toggleArpeggio;
+        window.cycleRepeatMode = cycleRepeatMode;
         window.setTTSTiming = setTTSTiming;
         window.playRandomChord = playRandomChord;
         window.playProgression = playProgression;
