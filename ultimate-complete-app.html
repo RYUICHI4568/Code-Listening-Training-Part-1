@@ -540,9 +540,20 @@
         body {
             padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
         }
+        /* 文字に半分かぶって見えないよう、画面下いっぱいの帯にする */
         .played-chord {
-            bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-            max-width: calc(100% - 32px);
+            left: 0;
+            right: 0;
+            bottom: 0;
+            transform: none;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            border: none;
+            border-top: 2px solid var(--border-color);
+            border-radius: 0;
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.2);
+            padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -1066,7 +1077,7 @@
             <div id="chord-diagram-content" style="text-align: center;"></div>
         </div>
 
-        <div id="played-chord" class="played-chord" role="status" aria-live="polite" style="display: block;">準備中...</div>
+        <div id="played-chord" class="played-chord" role="status" aria-live="polite" style="display: block;">--</div>
         
         <!-- iPhone用ログボタン -->
         <div id="mobile-console" style="display:none; position:fixed; bottom:80px; left:10px; right:10px; background:rgba(0,0,0,0.95); color:#0f0; border:2px solid #0f0; border-radius:8px; padding:10px; max-height:200px; overflow-y:auto; font-family:monospace; font-size:10px; z-index:9999; line-height:1.3;"></div>
@@ -1343,7 +1354,7 @@
                 playedChordElement.title = 'クリックしてコード図を表示';
                 playedChordElement.addEventListener('click', function() {
                     const chordText = this.textContent.trim();
-                    if (chordText && chordText !== '準備中...' && chordText !== 'Ready...') {
+                    if (chordText && chordText !== '--') {
                         showChordDiagram(chordText);
                     }
                 });
