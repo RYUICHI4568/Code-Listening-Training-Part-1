@@ -538,7 +538,7 @@
         button.chord-type.et-wrong, button.chord-type.et-wrong:hover { background: var(--accent-color); border-color: var(--accent-color); color: #fff; opacity: 1; }
         /* 画面下の固定表示（再生中のコード名）がコンテンツに重ならないよう余白を確保 */
         body {
-            padding-bottom: calc(170px + env(safe-area-inset-bottom, 0px));
+            padding-bottom: calc(215px + env(safe-area-inset-bottom, 0px));
         }
         /* 画面下いっぱいの帯：コード名と再生ボタンをいつでも押せる位置に置く */
         .dock {
@@ -569,13 +569,18 @@
         .dock-slider .slider { flex: 1 1 0; min-width: 0; margin: 0; }
         .dock-slider span { flex: 0 0 2.3em; text-align: right; }
         body[data-mode="statistics"] .dock-sliders { display: none; }
+        .dock-timer { display: none; align-items: center; gap: 8px; max-width: 800px; margin: 0 auto; padding: 0 10px 8px; font-size: 0.78rem; font-weight: 700; }
+        .dock-timer select { min-height: 34px; padding: 2px 8px; font-size: 0.8rem; }
+        #timer-remaining { margin-left: auto; color: var(--accent-text, var(--accent-color)); font-variant-numeric: tabular-nums; }
+        body[data-mode="random"] .dock-timer, body[data-mode="progression"] .dock-timer,
+        body[data-mode="scale"] .dock-timer, body.timer-active .dock-timer { display: flex; }
         .dock-actions { display: none; gap: 8px; max-width: 800px; margin: 0 auto; padding: 0 10px 10px; }
         .dock-actions .control-btn {
             flex: 1 1 0 !important; min-width: 0 !important; margin: 0;
             padding: 8px 6px !important; font-size: 0.9rem !important; white-space: normal !important;
         }
         #mobile-console {
-            bottom: calc(160px + env(safe-area-inset-bottom, 0px)) !important;
+            bottom: calc(205px + env(safe-area-inset-bottom, 0px)) !important;
         }
 
         /* ===== 見た目・使いやすさの調整（2026/10/30） ===== */
@@ -1006,6 +1011,18 @@
                 <button class="control-btn" id="et-play-btn" onclick="playEarTrainingChord()">🎵 問題を再生</button>
                 <button class="control-btn secondary" id="et-repeat-btn" onclick="repeatEarTrainingChord()">🔄 もう一度</button>
                 <button class="control-btn" id="et-next-btn" onclick="nextEarTrainingQuestion()">➡️ 次の問題</button>
+            </div>
+            <div class="dock-timer">
+                <label for="timer-select" data-i18n="timerLabel">⏰ 自動再生の予約</label>
+                <select id="timer-select" onchange="setStartTimer(this.value)">
+                    <option value="0" data-i18n="timerOff">なし</option>
+                    <option value="5" data-i18n="timer5">5分後</option>
+                    <option value="15" data-i18n="timer15">15分後</option>
+                    <option value="30" data-i18n="timer30">30分後</option>
+                    <option value="60" data-i18n="timer60">1時間後</option>
+                    <option value="120" data-i18n="timer120">2時間後</option>
+                </select>
+                <span id="timer-remaining" role="timer"></span>
             </div>
         </div>
 
@@ -1629,6 +1646,8 @@
                 scaleSelection: '🎵 キーで選ぶ', directChords: '🎹 コードを直接選ぶ', keySelection: '🎹 ルート音', chordType: '🎶 コードタイプ',
                 progressionPattern: '🎼 コード進行パターン',
                 scaleTitle: '🎶 スケール練習', scaleType: '種類', scaleRoot: '🎹 ルート音', octave: '🎹 オクターブ',
+                timerLabel: '⏰ 自動再生の予約', timerOff: 'なし', timer5: '5分後', timer15: '15分後', timer30: '30分後', timer60: '1時間後', timer120: '2時間後',
+                timerLeft: (time) => `あと ${time}`,
                 settingsTitle: '⚙️ 設定', playSection: '再生',
                 arpeggioChip: '🎵 アルペジオ', repeatChip: (count) => `🔁 ${count}回`,
                 ttsBeforeChord: '🗣️ コードの前に読み上げる', displayChord: '🎯 コード名を表示する',
@@ -1647,6 +1666,8 @@
                 scaleSelection: '🎵 Pick a key', directChords: '🎹 Pick chords directly', keySelection: '🎹 Roots', chordType: '🎶 Chord Types',
                 progressionPattern: '🎼 Progression Pattern',
                 scaleTitle: '🎶 Scale Practice', scaleType: 'Type', scaleRoot: '🎹 Root', octave: '🎹 Octave',
+                timerLabel: '⏰ Start auto play', timerOff: 'Off', timer5: 'In 5 min', timer15: 'In 15 min', timer30: 'In 30 min', timer60: 'In 1 hour', timer120: 'In 2 hours',
+                timerLeft: (time) => `${time} left`,
                 settingsTitle: '⚙️ Settings', playSection: 'Playback',
                 arpeggioChip: '🎵 Arpeggio', repeatChip: (count) => `🔁 ${count}x`,
                 ttsBeforeChord: '🗣️ Speak before the chord', displayChord: '🎯 Show the chord name',
@@ -1779,6 +1800,85 @@
             log(`🎹 スケールのルート音: ${root}`);
             saveSettings();
         }
+
+        // === 自動再生の予約 ===
+        const TIMER_MODES = ['random', 'progression', 'scale'];
+        let startTimerEnd = null;
+        let startTimerMode = 'random';
+        let startTimerInterval = null;
+        let screenWakeLock = null;
+
+        // 画面が消えると予約の時計が止まるので、対応ブラウザでは点けたままにする
+        async function keepScreenOn() {
+            try {
+                if (navigator.wakeLock) screenWakeLock = await navigator.wakeLock.request('screen');
+            } catch (e) { /* 使えない環境では無視 */ }
+        }
+
+        function setStartTimer(minutes) {
+            clearStartTimer();
+            const value = Number(minutes);
+            if (value > 0) {
+                // 予約を選んだタップの中で音を使える状態にしておく
+                const ctx = initAudioContext();
+                if (ctx.state === 'suspended') ctx.resume();
+                startTimerEnd = Date.now() + value * 60000;
+                startTimerMode = TIMER_MODES.includes(currentMode) ? currentMode : 'random';
+                startTimerInterval = setInterval(tickStartTimer, 1000);
+                document.body.classList.add('timer-active');
+                keepScreenOn();
+                tickStartTimer();
+                log(`⏰ 自動再生を${value}分後に予約`);
+            } else {
+                log('⏰ 自動再生の予約を取り消し');
+            }
+        }
+
+        function clearStartTimer() {
+            clearInterval(startTimerInterval);
+            startTimerInterval = null;
+            startTimerEnd = null;
+            document.body.classList.remove('timer-active');
+            document.getElementById('timer-remaining').textContent = '';
+            document.getElementById('timer-select').value = '0';
+        }
+
+        function tickStartTimer() {
+            if (!startTimerEnd) return;
+            const left = Math.ceil((startTimerEnd - Date.now()) / 1000);
+            if (left <= 0) {
+                fireStartTimer();
+                return;
+            }
+            const pad = (n) => String(n).padStart(2, '0');
+            const time = left >= 3600
+                ? `${Math.floor(left / 3600)}:${pad(Math.floor(left / 60) % 60)}:${pad(left % 60)}`
+                : `${Math.floor(left / 60)}:${pad(left % 60)}`;
+            document.getElementById('timer-remaining').textContent = translations[currentLanguage].timerLeft(time);
+        }
+
+        function fireStartTimer() {
+            clearStartTimer();
+            const mode = TIMER_MODES.includes(currentMode) ? currentMode : startTimerMode;
+            if (mode !== currentMode) setMode(mode);
+            const ctx = initAudioContext();
+            if (ctx.state === 'suspended') ctx.resume();
+            log(`⏰ 予約の時間になったので自動再生を開始: ${mode}`);
+            if (mode === 'progression') {
+                if (!progressionTimer) startProgressionAutoPlay();
+            } else if (mode === 'scale') {
+                if (!isScaleAutoPlayRunning) startScaleAutoPlay();
+            } else if (!autoPlayTimer) {
+                startAutoPlay();
+            }
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && startTimerEnd) {
+                keepScreenOn();
+                tickStartTimer();
+            }
+        });
 
         // === 設定シート ===
         function openSettings() {
@@ -4026,6 +4126,7 @@
         window.setMode = setMode;
         window.toggleKey = toggleKey;
         window.setScaleRoot = setScaleRoot;
+        window.setStartTimer = setStartTimer;
         window.openSettings = openSettings;
         window.closeSettings = closeSettings;
         window.saveSettings = saveSettings;
