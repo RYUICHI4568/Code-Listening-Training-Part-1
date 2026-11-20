@@ -712,6 +712,10 @@
         .sheet-radios { display: flex; gap: 14px; }
         .sheet-radios label { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; cursor: pointer; }
         .sheet-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .sheet-label { font-size: 0.9rem; margin-top: 6px; }
+        .timbre-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
+        .timbre-chips .dock-chip { display: inline-flex; align-items: center; }
+        .timbre-hint { font-size: 0.78rem; opacity: 0.75; margin-bottom: 4px; }
     </style>
 </head>
 <body data-mode="random">
@@ -1046,6 +1050,10 @@
             <label class="sheet-check"><input type="checkbox" id="tts-before-chord" onchange="setTTSTiming(this.checked)"> <span data-i18n="ttsBeforeChord">🗣️ コードの前に読み上げる</span></label>
             <label class="sheet-check"><input type="checkbox" id="toggle-played-chord" checked onchange="togglePlayedChordVisibility(this.checked)"> <span data-i18n="displayChord">🎯 コード名を表示する</span></label>
 
+            <div class="sheet-label" data-i18n="timbre">🎹 音色</div>
+            <div class="timbre-chips" id="timbre-chips"></div>
+            <div class="timbre-hint" id="timbre-hint"></div>
+
             <div class="sheet-row">
                 <label for="root-emphasis-slider" data-i18n="rootStrength">🎯 強調の強さ</label>
                 <input type="range" class="slider" id="root-emphasis-slider" min="20" max="300" step="10" value="100" oninput="setRootEmphasis(this.value)">
@@ -1107,7 +1115,6 @@
         let lastProgressionChord = null; // 直前に鳴った進行のコード（次の進行の頭と重ねない）
         let masterVolume = 0.5;
         let chordDuration = 2.0; // 2拍
-        let waveformType = 'sine';
         let enableArpeggio = false;
         let enableRootEmphasisMode = false;
         let rootEmphasis = 1.0; // 1.0 = ルートが他の音の2倍の音量
@@ -1666,6 +1673,9 @@
                 settingsTitle: '⚙️ 設定', playSection: '再生',
                 rootChip: '🎯 ルート強調', rootStrength: '🎯 強調の強さ', arpeggioChip: '🎵 アルペジオ', repeatChip: (count) => `🔁 ${count}回`,
                 ttsBeforeChord: '🗣️ コードの前に読み上げる', displayChord: '🎯 コード名を表示する',
+                timbre: '🎹 音色（複数選ぶとランダム）',
+                timbreFixed: (name) => `いつも${name}で鳴ります`,
+                timbreRandom: (names) => `毎回 ${names} からランダム`,
                 metronomeSection: 'メトロノーム', timeSignature: '拍子', otherSection: 'その他'
             },
             en: {
@@ -1688,6 +1698,9 @@
                 settingsTitle: '⚙️ Settings', playSection: 'Playback',
                 rootChip: '🎯 Root', rootStrength: '🎯 Root boost', arpeggioChip: '🎵 Arpeggio', repeatChip: (count) => `🔁 ${count}x`,
                 ttsBeforeChord: '🗣️ Speak before the chord', displayChord: '🎯 Show the chord name',
+                timbre: '🎹 Sound (pick several for random)',
+                timbreFixed: (name) => `Always ${name}`,
+                timbreRandom: (names) => `Random each time: ${names}`,
                 metronomeSection: 'Metronome', timeSignature: 'Time', otherSection: 'Other'
             }
         };
@@ -1719,6 +1732,7 @@
             updateChordRangeHint();
             updateProgressionHint();
             updateDockChips();
+            renderTimbreChips();
             if (typeof updateEarTrainingLanguage === 'function') updateEarTrainingLanguage();
         }
 
@@ -1913,6 +1927,46 @@
             if (event.key === 'Escape') closeSettings();
         });
 
+        // === 音色の選択（1つなら固定、複数ならランダム） ===
+        function renderTimbreChips() {
+            const box = document.getElementById('timbre-chips');
+            if (!box) return;
+            const lang = currentLanguage === 'en' ? 'en' : 'ja';
+            if (box.children.length === 0) {
+                TIMBRE_IDS.forEach(id => {
+                    const b = document.createElement('button');
+                    b.type = 'button';
+                    b.className = 'dock-chip';
+                    b.dataset.timbre = id;
+                    b.onclick = () => toggleTimbre(id);
+                    box.appendChild(b);
+                });
+            }
+            box.querySelectorAll('[data-timbre]').forEach(b => {
+                const on = selectedTimbres.includes(b.dataset.timbre);
+                b.textContent = TIMBRES[b.dataset.timbre][lang];
+                b.classList.toggle('on', on);
+                b.setAttribute('aria-pressed', on ? 'true' : 'false');
+            });
+            const t = translations[lang];
+            const names = selectedTimbres.map(id => TIMBRES[id][lang]);
+            document.getElementById('timbre-hint').textContent = names.length === 1 ? t.timbreFixed(names[0]) : t.timbreRandom(names.join(lang === 'en' ? ', ' : '・'));
+        }
+
+        function toggleTimbre(id) {
+            if (!TIMBRES[id]) return;
+            if (selectedTimbres.includes(id)) {
+                if (selectedTimbres.length === 1) return; // 最低1つは残す
+                selectedTimbres = selectedTimbres.filter(x => x !== id);
+            } else {
+                selectedTimbres = TIMBRE_IDS.filter(x => x === id || selectedTimbres.includes(x));
+            }
+            if (!selectedTimbres.includes(currentTimbre)) currentTimbre = selectedTimbres[0];
+            renderTimbreChips();
+            saveSettings();
+            log(`🎹 音色: ${selectedTimbres.join(', ')}`);
+        }
+
         // === 設定の保存 ===
         const SETTINGS_KEY = 'chordAppSettings';
 
@@ -1925,7 +1979,7 @@
                     scaleRoot, scaleType: document.getElementById('scale-type-select').value,
                     volume: Math.round(masterVolume * 100), tempo, octaveMode,
                     enableArpeggio, enableRootEmphasisMode, rootEmphasis, ttsBeforeChord, repeatMode, showPlayedChord,
-                    metronomeTimeSignature
+                    metronomeTimeSignature, selectedTimbres
                 }));
             } catch (e) { /* 保存できない環境では無視 */ }
         }
@@ -1946,6 +2000,12 @@
             try {
                 d = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
             } catch (e) { /* 読めない場合は初期値 */ }
+            if (d && Array.isArray(d.selectedTimbres)) {
+                const valid = TIMBRE_IDS.filter(id => d.selectedTimbres.includes(id));
+                if (valid.length > 0) selectedTimbres = valid;
+            }
+            currentTimbre = selectedTimbres[0];
+            renderTimbreChips();
             if (!d) {
                 setScaleRoot('C');
                 updateChordRangeHint();
@@ -2113,11 +2173,6 @@
             document.getElementById('volume-value').textContent = `${value}%`;
             log(`🔊 音量設定: ${value}% (masterVolume=${masterVolume})`);
             saveSettings();
-        }
-
-        function setWaveform(value) {
-            waveformType = value;
-            log(`🎵 波形タイプ設定: ${value}`);
         }
 
         function setRootEmphasis(value) {
@@ -2557,6 +2612,219 @@
             });
         }
 
+        // === 音色（すべてプログラムで合成。録音は使わないのでファイルは軽いまま） ===
+        const SYNTH_RATE = 44100;
+        const TIMBRES = {
+            piano:   { ja: 'ピアノ', en: 'Piano', gain: 2.6 },
+            epiano:  { ja: 'エレピ', en: 'E.Piano', gain: 1.3 },
+            organ:   { ja: 'オルガン', en: 'Organ', gain: 1.2 },
+            guitar:  { ja: 'ギター', en: 'Guitar', gain: 4.5, strum: 0.018 },
+            strings: { ja: 'ストリングス', en: 'Strings', gain: 1.8 },
+            sine:    { ja: 'サイン波', en: 'Sine', gain: 1.0 }
+        };
+        const TIMBRE_IDS = Object.keys(TIMBRES);
+        let selectedTimbres = ['piano']; // 1つなら固定、複数なら出題ごとにランダム
+        let currentTimbre = 'piano';
+
+        // 新しいコード（問題・進行）を鳴らすときに呼ぶ。もう一度聞くときは同じ音色のまま
+        function pickTimbre() {
+            const list = selectedTimbres.length > 0 ? selectedTimbres : ['piano'];
+            currentTimbre = list[Math.floor(Math.random() * list.length)];
+            return currentTimbre;
+        }
+
+        // 倍音の表（1周期ぶん）。毎サンプル sin を何度も計算しないための下ごしらえ
+        const WAVE_TABLE_SIZE = 4096;
+        const waveTables = {};
+        function getWaveTable(name, harmonics) {
+            if (waveTables[name]) return waveTables[name];
+            const table = new Float32Array(WAVE_TABLE_SIZE + 1);
+            let peak = 0;
+            for (let i = 0; i <= WAVE_TABLE_SIZE; i++) {
+                let v = 0;
+                harmonics.forEach((amp, n) => { if (amp) v += amp * Math.sin(2 * Math.PI * (n + 1) * i / WAVE_TABLE_SIZE); });
+                table[i] = v;
+                peak = Math.max(peak, Math.abs(v));
+            }
+            for (let i = 0; i <= WAVE_TABLE_SIZE; i++) table[i] /= peak;
+            return (waveTables[name] = table);
+        }
+        function tableAt(table, phase) { // phase は 0〜1
+            const x = phase * WAVE_TABLE_SIZE;
+            const i = x | 0;
+            return table[i] + (table[i + 1] - table[i]) * (x - i);
+        }
+
+        // 1音を out に足す。start, length はサンプル数、amp は音量
+        function addVoice(out, timbre, freq, start, length, amp) {
+            const sr = SYNTH_RATE;
+            const end = Math.min(out.length, start + length);
+            const n = end - start;
+            if (n <= 0) return;
+            const releaseN = Math.min(n, Math.floor(0.03 * sr)); // 終わりのプツッを防ぐ
+            const release = (k) => (k > n - releaseN ? (n - k) / releaseN : 1);
+            const attack = (k, sec) => Math.min(1, k / (sec * sr));
+            const inc = freq / sr;
+
+            if (timbre === 'guitar') {
+                // 弦をはじく音（Karplus-Strong）
+                const y = new Float32Array(n);
+                const delay = sr / freq - 0.5;
+                const first = Math.min(n, Math.ceil(delay) + 2);
+                let seed = Math.floor(freq * 1000) % 2147483647 || 1;
+                let prev = 0;
+                for (let k = 0; k < first; k++) {
+                    seed = (seed * 16807) % 2147483647;
+                    const noise = seed / 2147483647 * 2 - 1;
+                    prev = prev * 0.5 + noise * 0.5; // 少しやわらかく
+                    y[k] = prev;
+                }
+                const loss = 0.996 + 0.0035 * Math.min(1, 110 / freq);
+                for (let k = first; k < n; k++) {
+                    const pos = k - delay;
+                    const i = Math.floor(pos);
+                    const fr = pos - i;
+                    const a = y[i] * (1 - fr) + y[i + 1] * fr;
+                    const b = y[i - 1] * (1 - fr) + y[i] * fr;
+                    y[k] = loss * 0.5 * (a + b);
+                }
+                for (let k = 0; k < n; k++) out[start + k] += y[k] * amp * attack(k, 0.002) * release(k);
+                return;
+            }
+
+            if (timbre === 'epiano') {
+                // FM 合成のエレピ。たたいた瞬間は明るく、すぐ丸い音になる
+                const decay = Math.exp(-1 / (1.6 * Math.pow(262 / freq, 0.3) * sr));
+                const bright = Math.exp(-1 / (0.25 * sr));
+                const bell = Math.exp(-1 / (0.06 * sr));
+                let env = 1, idx = 1, bellEnv = 1;
+                for (let k = 0; k < n; k++) {
+                    const ph = 2 * Math.PI * inc * k;
+                    const index = 0.15 + 1.4 * idx;
+                    const v = Math.sin(ph + index * Math.sin(ph)) + 0.12 * bellEnv * Math.sin(ph * 7);
+                    out[start + k] += v * env * amp * attack(k, 0.002) * release(k);
+                    env *= decay; idx *= bright; bellEnv *= bell;
+                }
+                return;
+            }
+
+            if (timbre === 'piano') {
+                // 明るい音色から暗い音色へ移りながら減衰。2本の弦をわずかにずらして厚みを出す
+                const brightT = getWaveTable('pianoBright', [1, 0.55, 0.35, 0.22, 0.16, 0.1, 0.07, 0.05, 0.03, 0.02]);
+                const darkT = getWaveTable('pianoDark', [1, 0.25, 0.06]);
+                const fast = Math.exp(-1 / (0.18 * sr));
+                const slow = Math.exp(-1 / (Math.min(3, 2.2 * Math.pow(220 / freq, 0.6)) * sr));
+                const tone = Math.exp(-1 / (0.35 * sr));
+                const inc2 = inc * Math.pow(2, 1.5 / 1200);
+                let ef = 1, es = 1, mix = 1, p1 = 0, p2 = 0.25;
+                for (let k = 0; k < n; k++) {
+                    const s1 = tableAt(brightT, p1) * mix + tableAt(darkT, p1) * (1 - mix);
+                    const s2 = tableAt(brightT, p2) * mix + tableAt(darkT, p2) * (1 - mix);
+                    const env = 0.4 * ef + 0.6 * es;
+                    out[start + k] += (s1 + s2) * 0.5 * env * amp * attack(k, 0.003) * release(k);
+                    p1 += inc; if (p1 >= 1) p1 -= 1;
+                    p2 += inc2; if (p2 >= 1) p2 -= 1;
+                    ef *= fast; es *= slow; mix *= tone;
+                }
+                return;
+            }
+
+            if (timbre === 'organ') {
+                const table = getWaveTable('organ', [1, 0.7, 0.45, 0.35, 0, 0.2, 0, 0.15]);
+                let p = 0;
+                for (let k = 0; k < n; k++) {
+                    out[start + k] += tableAt(table, p) * amp * attack(k, 0.01) * release(k);
+                    p += inc; if (p >= 1) p -= 1;
+                }
+                return;
+            }
+
+            if (timbre === 'strings') {
+                // のこぎり波に近い倍音を3本少しずらして重ね、ゆっくり立ち上げる
+                const table = getWaveTable('strings', [1, 0.5, 0.33, 0.25, 0.18, 0.13, 0.09, 0.06, 0.04, 0.03]);
+                const detunes = [-6, 0, 6].map(c => inc * Math.pow(2, c / 1200));
+                const phases = [0, 0.33, 0.66];
+                const attackSec = Math.min(0.15, n / sr / 4);
+                for (let k = 0; k < n; k++) {
+                    let v = 0;
+                    for (let j = 0; j < 3; j++) {
+                        v += tableAt(table, phases[j]);
+                        phases[j] += detunes[j]; if (phases[j] >= 1) phases[j] -= 1;
+                    }
+                    out[start + k] += v / 3 * amp * attack(k, attackSec) * release(k);
+                }
+                return;
+            }
+
+            // サイン波
+            for (let k = 0; k < n; k++) {
+                out[start + k] += Math.sin(2 * Math.PI * inc * k) * amp * attack(k, 0.003) * release(k);
+            }
+        }
+
+        // notes: [{ freq, start(秒), duration(秒), amp }] を1本の波形にまとめる
+        function synthNotes(notes, totalDuration, timbre = currentTimbre) {
+            const sr = SYNTH_RATE;
+            const out = new Float32Array(Math.max(1, Math.floor(totalDuration * sr)));
+            const gain = (TIMBRES[timbre] || TIMBRES.sine).gain;
+            notes.forEach(note => {
+                addVoice(out, timbre, note.freq, Math.floor(note.start * sr), Math.floor(note.duration * sr), note.amp * gain);
+            });
+            return out;
+        }
+
+        // 和音（同時に鳴らす）。ギターだけ低い音から順にジャランと鳴らす
+        function synthChord(frequencies, duration, timbre = currentTimbre) {
+            const weights = getNoteWeights(frequencies.length);
+            const strum = (TIMBRES[timbre] || {}).strum || 0;
+            return synthNotes(frequencies.map((freq, i) => ({
+                freq, start: i * strum, duration: duration - i * strum, amp: 0.3 * weights[i]
+            })), duration, timbre);
+        }
+
+        function samplesToWAV(samples) {
+            const dataSize = samples.length * 2;
+            const buffer = new ArrayBuffer(44 + dataSize);
+            const view = new DataView(buffer);
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + dataSize, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true); // PCM
+            view.setUint16(22, 1, true); // モノラル
+            view.setUint32(24, SYNTH_RATE, true);
+            view.setUint32(28, SYNTH_RATE * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, dataSize, true);
+            for (let i = 0; i < samples.length; i++) {
+                view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, samples[i])) * 0x7FFF, true);
+            }
+            return buffer;
+        }
+
+        // 合成した波形をそのまま鳴らす（進行・スケール用）。stop() できるものを返す
+        function playSamples(samples, onEnded) {
+            const ctx = initAudioContext();
+            const buffer = ctx.createBuffer(1, samples.length, SYNTH_RATE);
+            buffer.getChannelData(0).set(samples);
+            const source = ctx.createBufferSource();
+            const gain = ctx.createGain();
+            source.buffer = buffer;
+            gain.gain.value = masterVolume * 2;
+            source.connect(gain);
+            gain.connect(ctx.destination);
+            source.onended = () => {
+                source.disconnect();
+                gain.disconnect();
+                if (onEnded) onEnded();
+            };
+            source.start();
+            return source;
+        }
+
         // === WAV音声生成（iPhone対応） ===
         // 各音の音量の割合（合計1）。ルート強調のときはルートを大きくして、全体の大きさは変えない
         function getNoteWeights(count) {
@@ -2565,97 +2833,11 @@
             return Array.from({ length: count }, (_, index) => (index === 0 ? 1 + boost : 1) / total);
         }
 
-        function generateChordWAV(frequencies, duration, sampleRate = 44100) {
-            const numSamples = Math.floor(duration * sampleRate);
-            const numChannels = 1;
-            const bitsPerSample = 16;
-            
-            const blockAlign = numChannels * bitsPerSample / 8;
-            const byteRate = sampleRate * blockAlign;
-            const dataSize = numSamples * blockAlign;
-            
-            const buffer = new ArrayBuffer(44 + dataSize);
-            const view = new DataView(buffer);
-            
-            // WAVヘッダー
-            writeString(view, 0, 'RIFF');
-            view.setUint32(4, 36 + dataSize, true);
-            writeString(view, 8, 'WAVE');
-            writeString(view, 12, 'fmt ');
-            view.setUint32(16, 16, true);
-            view.setUint16(20, 1, true); // PCM
-            view.setUint16(22, numChannels, true);
-            view.setUint32(24, sampleRate, true);
-            view.setUint32(28, byteRate, true);
-            view.setUint16(32, blockAlign, true);
-            view.setUint16(34, bitsPerSample, true);
-            writeString(view, 36, 'data');
-            view.setUint32(40, dataSize, true);
-            
-            // iPhone対応：音量を完全に固定値で一定に保つ（音量変動問題完全解決）
-            // 音量が徐々に大きくなる現象を完全に防止するため、baseVolumeを完全に固定
-            const noteWeights = getNoteWeights(frequencies.length);
-            const baseVolume = 0.3; // 完全固定値、masterVolumeに依存しない（音量変動防止）
-            
-            // ノイズ防止：スムーズなフェードアウト（再生終わりのノイズを防ぐ）
-            const fadeOutDuration = 0.05; // フェードアウト時間（50ms）- 元に戻す
-            const fadeOutSamples = Math.floor(fadeOutDuration * sampleRate);
-            
-            // 複数の周波数を合成してサイン波データを生成
-            let offset = 44;
-            for (let i = 0; i < numSamples; i++) {
-                let sample = 0;
-                
-                // トレモロ・音量変動完全防止：根本的改善（各音を完全に独立して計算）
-                // 音量が徐々に大きくなる現象を完全に防止するため、各音の振幅を完全に固定
-                // トレモロ完全防止：各音の位相を0から開始して一定に保つ
-                const maxAmplitude = baseVolume; // 最大振幅をbaseVolumeに固定（音量変動防止）
-                
-                // 各音のサイン波を生成（位相を0から開始して一定に保つ）
-                // トレモロ完全防止：各音の音量を完全に固定し、合成後の振幅を厳密に制限
-                
-                // 各音を独立して計算して合成（トレモロ防止）
-                sample = 0;
-                for (let idx = 0; idx < frequencies.length; idx++) {
-                    const freq = frequencies[idx];
-                    const phase = 2 * Math.PI * freq * i / sampleRate;
-                    const waveValue = Math.sin(phase);
-                    // 各音の音量を完全に固定（トレモロ完全防止）
-                    sample += waveValue * maxAmplitude * noteWeights[idx];
-                }
-                
-                // 音量が徐々に大きくなる現象を完全に防止：厳密なクリッピング（調整は一切行わない）
-                // ハードリミッター：厳密に制限（音量変動防止、トレモロ防止、安定化、ノイズ防止）
-                // 音量が徐々に大きくなる現象を完全に防止するため、各サンプルで厳密に制限
-                const currentAmplitude = Math.abs(sample);
-                if (currentAmplitude > maxAmplitude) {
-                    // 厳密なクリッピング（音量変動防止、トレモロ防止、安定化、ノイズ防止）
-                    sample = (sample > 0 ? maxAmplitude : -maxAmplitude);
-                }
-                // 正規化や調整は一切行わない（音量が徐々に大きくなる現象を完全に防止、安定化）
-                
-                // 音量が徐々に大きくなる現象を完全に防止：最終チェック（念のため）
-                sample = Math.max(-maxAmplitude, Math.min(maxAmplitude, sample));
-                
-                // ノイズ防止：再生終わりのフェードアウト処理（線形、元に戻す）
-                if (i >= numSamples - fadeOutSamples) {
-                    const fadeOutProgress = (numSamples - i) / fadeOutSamples;
-                    // スムーズなフェードアウト（線形）
-                    sample *= fadeOutProgress;
-                }
-                
-                // アタック速度改善：フェードインを完全に削除（即座にフル音量で再生）
-                // フェードイン処理は一切行わない
-                
-                // 16bit変換
-                const value = Math.max(-1, Math.min(1, sample)) * 0x7FFF;
-                view.setInt16(offset, value, true);
-                offset += 2;
-            }
-            
-            return buffer;
+        // 音量は一定（あとから音量を変える処理は入れない）。音色は currentTimbre
+        function generateChordWAV(frequencies, duration) {
+            return samplesToWAV(synthChord(frequencies, duration));
         }
-        
+
         function writeString(view, offset, string) {
             for (let i = 0; i < string.length; i++) {
                 view.setUint8(offset + i, string.charCodeAt(i));
@@ -2663,88 +2845,20 @@
         }
         
         // アルペジオ用WAV生成
-        function generateArpeggioWAV(frequencies, sampleRate = 44100) {
+        function generateArpeggioWAV(frequencies) {
             const noteDelay = arpeggioSpeed; // BPMで決まる音間隔
             const noteDuration = 0.4; // 各音の長さ
             const totalDuration = frequencies.length * noteDelay + noteDuration;
-            const numSamples = Math.floor(totalDuration * sampleRate);
-            const numChannels = 1;
-            const bitsPerSample = 16;
-            
-            const blockAlign = numChannels * bitsPerSample / 8;
-            const byteRate = sampleRate * blockAlign;
-            const dataSize = numSamples * blockAlign;
-            
-            const buffer = new ArrayBuffer(44 + dataSize);
-            const view = new DataView(buffer);
-            
-            // WAVヘッダー
-            writeString(view, 0, 'RIFF');
-            view.setUint32(4, 36 + dataSize, true);
-            writeString(view, 8, 'WAVE');
-            writeString(view, 12, 'fmt ');
-            view.setUint32(16, 16, true);
-            view.setUint16(20, 1, true);
-            view.setUint16(22, numChannels, true);
-            view.setUint32(24, sampleRate, true);
-            view.setUint32(28, byteRate, true);
-            view.setUint16(32, blockAlign, true);
-            view.setUint16(34, bitsPerSample, true);
-            writeString(view, 36, 'data');
-            view.setUint32(40, dataSize, true);
-            
-            // iPhone対応：アルペジオ音量を完全に固定値で一定に保つ（音量変動問題完全解決）
-            const noteVolume = 0.2; // 完全固定値、masterVolumeに依存しない
             const noteWeights = getNoteWeights(frequencies.length);
-            
-            // アルペジオデータ生成（ノイズ完全防止・サスティーン延長）
-            let offset = 44;
-            for (let i = 0; i < numSamples; i++) {
-                let sample = 0;
-                const currentTime = i / sampleRate;
-                
-                // 各音を順番に生成（ノイズ完全防止・フェードイン/アウト追加）
-                frequencies.forEach((freq, noteIndex) => {
-                    const startTime = noteIndex * noteDelay;
-                    const endTime = startTime + noteDuration + 0.5; // サスティーンを0.5秒延長
-                    
-                    if (currentTime >= startTime && currentTime < endTime) {
-                        const noteTime = currentTime - startTime;
-                        const wave = Math.sin(2 * Math.PI * freq * noteTime);
-                        
-                        // ノイズ防止：各音のフェードイン/アウト処理
-                        const fadeInDuration = 0.01; // フェードイン時間（10ms）
-                        const fadeOutDuration = 0.05; // フェードアウト時間（50ms）
-                        let envelope = 1.0;
-                        
-                        // フェードイン処理（音の開始時）
-                        if (noteTime < fadeInDuration) {
-                            envelope = noteTime / fadeInDuration;
-                        }
-                        // フェードアウト処理（音の終了時）
-                        else if (currentTime >= endTime - fadeOutDuration) {
-                            envelope = (endTime - currentTime) / fadeOutDuration;
-                        }
-                        
-                        sample += wave * noteVolume * frequencies.length * noteWeights[noteIndex] * envelope;
-                    }
-                });
-                
-                // アルペジオ終了時のノイズ完全防止：全体のフェードアウト処理（延長・改善）
-                const extendedFadeOutSamples = Math.floor(0.25 * sampleRate); // 250msに延長（ノイズ完全防止）
-                if (i >= numSamples - extendedFadeOutSamples) {
-                    const overallFadeOutProgress = (numSamples - i) / extendedFadeOutSamples;
-                    // 指数関数的フェードアウト（4乗でより滑らか、ノイズ完全防止）
-                    const exponentialFade = Math.pow(overallFadeOutProgress, 4);
-                    sample *= exponentialFade;
-                }
-                
-                const value = Math.max(-1, Math.min(1, sample)) * 0x7FFF;
-                view.setInt16(offset, value, true);
-                offset += 2;
+            const samples = synthNotes(frequencies.map((freq, i) => ({
+                freq, start: i * noteDelay, duration: noteDuration + 0.5, amp: 0.2 * frequencies.length * noteWeights[i]
+            })), totalDuration);
+            // 最後はなめらかに消す（250ms）
+            const fadeN = Math.min(samples.length, Math.floor(0.25 * SYNTH_RATE));
+            for (let k = 0; k < fadeN; k++) {
+                samples[samples.length - 1 - k] *= Math.pow(k / fadeN, 4);
             }
-            
-            return buffer;
+            return samplesToWAV(samples);
         }
 
         // === 音声生成（高品質版） ===
@@ -2918,36 +3032,11 @@
                 log(`🎵 進行コード再生: ${chordName}`);
                 updatePlayedChordLabel(chordName);
                 
-                // 単音コードと同じ音量にそろえる
-                const noteWeights = getNoteWeights(frequencies.length);
-
-                const promises = frequencies.map((freq, index) => {
-                    return new Promise((resolve) => {
-                        const oscillator = ctx.createOscillator();
-                        const gainNode = ctx.createGain();
-
-                        oscillator.frequency.setValueAtTime(freq, ctx.currentTime);
-                        oscillator.type = waveformType;
-
-                        const volume = 0.3 * noteWeights[index] * masterVolume * 2;
-                        
-                        gainNode.gain.setValueAtTime(0, ctx.currentTime);
-                        gainNode.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.01);
-                        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration - 0.01);
-                        gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + duration);
-                        
-                        oscillator.connect(gainNode);
-                        gainNode.connect(ctx.destination);
-                        
-                        oscillator.start(ctx.currentTime);
-                        oscillator.stop(ctx.currentTime + duration);
-                        
-                        oscillator.onended = resolve;
-                        activeProgressionOscillators.push(oscillator);
-                    });
+                // 単音コードと同じ音量・同じ音色
+                await new Promise(resolve => {
+                    const source = playSamples(synthChord(frequencies, duration), resolve);
+                    activeProgressionOscillators.push(source);
                 });
-
-                await Promise.all(promises);
                 activeProgressionOscillators = [];
                 
             } catch (error) {
@@ -3028,6 +3117,7 @@
                         log(`🎼 スケール再生開始: ${rootScale} ${scaleType}`);
             
             const pattern = scalePatterns[scaleType];
+            pickTimbre();
             if (!pattern) {
                 log(`❌ スケールパターンが見つかりません: ${scaleType}`);
                 return;
@@ -3076,34 +3166,8 @@
         function playSingleNote(frequency, duration) {
             return new Promise((resolve, reject) => {
                 try {
-                    if (!audioContext) {
-                        initAudioContext();
-                    }
-                    
-                    const oscillator = audioContext.createOscillator();
-                    const gainNode = audioContext.createGain();
-                    
-                    oscillator.connect(gainNode);
-                    gainNode.connect(audioContext.destination);
-                    
-                    oscillator.frequency.value = frequency;
-                    oscillator.type = waveformType;
-                    
-                    gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-                    gainNode.gain.linearRampToValueAtTime(masterVolume * 0.3, audioContext.currentTime + 0.01);
-                    gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + duration);
-                    
-                    oscillator.start(audioContext.currentTime);
-                    oscillator.stop(audioContext.currentTime + duration);
-                    
-                    oscillator.onended = () => {
-                        resolve();
-                    };
-                    
-                    oscillator.onerror = (error) => {
-                        log(`❌ 音声再生エラー: ${error}`);
-                        reject(error);
-                    };
+                    // スケールも選んだ音色で鳴らす
+                    playSamples(synthNotes([{ freq: frequency, start: 0, duration, amp: 0.15 }], duration), resolve);
                 } catch (error) {
                     log(`❌ playSingleNoteエラー: ${error}`);
                     reject(error);
@@ -3317,7 +3381,8 @@
             const randomType = selected.type;
             const chordName = selected.name;
             
-            log(`🎲 ランダム選択: ${chordName}`);
+            pickTimbre();
+            log(`🎲 ランダム選択: ${chordName}（${TIMBRES[currentTimbre].ja}）`);
             updatePlayedChordLabel(chordName);
             
             const frequencies = getChordFrequencies(randomKey, randomType, pickOctaveShift());
@@ -3476,6 +3541,7 @@
             }
             
             const combo = pickProgressionCombo();
+            pickTimbre(); // 1回の進行の中では同じ音色
             const progression = advancedProgressions[combo.pattern];
             const key = combo.key;
             updateProgressionHint({ name: progression.name, key });
@@ -3880,6 +3946,7 @@
 
             resultEl.textContent = t.ask;
             // タップ処理の中で同期的に再生（iPhone対策）。出題中はコード名を出さない
+            next.timbre = pickTimbre();
             playAdvancedChord(getChordFrequencies(next.key, next.type, next.octaveShift), etChordName(next), { hideName: true });
             log(`👂 聴音訓練: 出題 (${earTraining.mode})`);
         }
@@ -3887,6 +3954,7 @@
         function repeatEarTrainingChord() {
             const c = earTraining.current;
             if (!c) { playEarTrainingChord(); return; }
+            if (c.timbre) currentTimbre = c.timbre; // もう一度聞くときは同じ音色
             playAdvancedChord(getChordFrequencies(c.key, c.type, c.octaveShift), etChordName(c), { hideName: !earTraining.answered });
         }
 
@@ -4224,9 +4292,9 @@
         window.toggleChordType = toggleChordType;
         window.selectProgression = selectProgression;
         window.setVolume = setVolume;
-        window.setWaveform = setWaveform;
         window.setTempo = setTempo;
         window.setOctaveMode = setOctaveMode;
+        window.toggleTimbre = toggleTimbre;
         window.toggleArpeggio = toggleArpeggio;
         window.toggleRootEmphasis = toggleRootEmphasis;
         window.setRootEmphasis = setRootEmphasis;
