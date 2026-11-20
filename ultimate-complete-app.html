@@ -1104,6 +1104,7 @@
         let selectedProgressionKeys = ['C'];
         let selectedPatterns = ['basic1']; // 進行パターン（複数選べる。再生ごとにランダム）
         let lastProgressionCombo = null;
+        let lastProgressionChord = null; // 直前に鳴った進行のコード（次の進行の頭と重ねない）
         let masterVolume = 0.5;
         let chordDuration = 2.0; // 2拍
         let waveformType = 'sine';
@@ -2095,8 +2096,13 @@
             selectedPatterns.forEach(pattern => {
                 selectedProgressionKeys.forEach(key => combos.push({ pattern, key }));
             });
-            const fresh = combos.filter(c => !lastProgressionCombo || c.pattern !== lastProgressionCombo.pattern || c.key !== lastProgressionCombo.key);
-            const list = fresh.length > 0 ? fresh : combos;
+            const isNew = c => !lastProgressionCombo || c.pattern !== lastProgressionCombo.pattern || c.key !== lastProgressionCombo.key;
+            const startsFresh = c => buildProgressionChords(c.pattern, c.key)[0].name !== lastProgressionChord;
+            // 「前と違う組み合わせ」かつ「前の最後と同じコードで始まらない」ものを優先
+            const best = combos.filter(c => isNew(c) && startsFresh(c));
+            const fallback = combos.filter(startsFresh);
+            const different = combos.filter(isNew);
+            const list = best.length > 0 ? best : fallback.length > 0 ? fallback : different.length > 0 ? different : combos;
             lastProgressionCombo = list[Math.floor(Math.random() * list.length)];
             return lastProgressionCombo;
         }
@@ -2906,7 +2912,7 @@
             }
         }
 
-        async function playProgressionChordOnly(frequencies, chordName) {
+        async function playProgressionChordOnly(frequencies, chordName, duration = chordDuration) {
             try {
                 const ctx = initAudioContext();
                 log(`🎵 進行コード再生: ${chordName}`);
@@ -2927,14 +2933,14 @@
                         
                         gainNode.gain.setValueAtTime(0, ctx.currentTime);
                         gainNode.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.01);
-                        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + chordDuration - 0.01);
-                        gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + chordDuration);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration - 0.01);
+                        gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + duration);
                         
                         oscillator.connect(gainNode);
                         gainNode.connect(ctx.destination);
                         
                         oscillator.start(ctx.currentTime);
-                        oscillator.stop(ctx.currentTime + chordDuration);
+                        oscillator.stop(ctx.currentTime + duration);
                         
                         oscillator.onended = resolve;
                         activeProgressionOscillators.push(oscillator);
@@ -3425,6 +3431,37 @@
 
         // 度数（0〜6）からコードを決める。6番は♭VII（モーダル系のパターンで使用）
         const PROGRESSION_QUALITY = ['', 'm', 'm', '', '', 'm', ''];
+        // フラット・シャープキーも含む、キーごとの音階
+        const PROGRESSION_SCALES = {
+            'C': ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
+            'Db': ['Db', 'Eb', 'F', 'Gb', 'Ab', 'Bb', 'C'],
+            'D': ['D', 'E', 'F#', 'G', 'A', 'B', 'C#'],
+            'Eb': ['Eb', 'F', 'G', 'Ab', 'Bb', 'C', 'D'],
+            'E': ['E', 'F#', 'G#', 'A', 'B', 'C#', 'D#'],
+            'F': ['F', 'G', 'A', 'Bb', 'C', 'D', 'E'],
+            'Gb': ['Gb', 'Ab', 'Bb', 'Cb', 'Db', 'Eb', 'F'],
+            'G': ['G', 'A', 'B', 'C', 'D', 'E', 'F#'],
+            'Ab': ['Ab', 'Bb', 'C', 'Db', 'Eb', 'F', 'G'],
+            'A': ['A', 'B', 'C#', 'D', 'E', 'F#', 'G#'],
+            'Bb': ['Bb', 'C', 'D', 'Eb', 'F', 'G', 'A'],
+            'B': ['B', 'C#', 'D#', 'E', 'F#', 'G#', 'A#']
+        };
+
+        // 進行のコードの並び。同じコードが続くところは1つにまとめて、その分長く鳴らす（count）
+        function buildProgressionChords(pattern, key) {
+            const chords = [];
+            advancedProgressions[pattern].chords.forEach(degree => {
+                const chord = getProgressionChord(key, PROGRESSION_SCALES[key], degree);
+                const last = chords[chords.length - 1];
+                if (last && last.name === chord.name) {
+                    last.count++;
+                } else {
+                    chords.push({ ...chord, count: 1 });
+                }
+            });
+            return chords;
+        }
+
         function getProgressionChord(key, scale, degree) {
             const index = degree % 7;
             const root = index === 6 ? ET_KEYS[(ET_KEYS.indexOf(key) + 10) % 12] : scale[index];
@@ -3444,27 +3481,6 @@
             updateProgressionHint({ name: progression.name, key });
             log(`🎼 進行再生開始: ${progression.name} in ${key}`);
             
-            // フラット・シャープキーも含む完全なキー対応
-            const allKeys = {
-                'C': ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
-                'Db': ['Db', 'Eb', 'F', 'Gb', 'Ab', 'Bb', 'C'],
-                'D': ['D', 'E', 'F#', 'G', 'A', 'B', 'C#'],
-                'Eb': ['Eb', 'F', 'G', 'Ab', 'Bb', 'C', 'D'],
-                'E': ['E', 'F#', 'G#', 'A', 'B', 'C#', 'D#'],
-                'F': ['F', 'G', 'A', 'Bb', 'C', 'D', 'E'],
-                'Gb': ['Gb', 'Ab', 'Bb', 'Cb', 'Db', 'Eb', 'F'],
-                'G': ['G', 'A', 'B', 'C', 'D', 'E', 'F#'],
-                'Ab': ['Ab', 'Bb', 'C', 'Db', 'Eb', 'F', 'G'],
-                'A': ['A', 'B', 'C#', 'D', 'E', 'F#', 'G#'],
-                'Bb': ['Bb', 'C', 'D', 'Eb', 'F', 'G', 'A'],
-                'B': ['B', 'C#', 'D#', 'E', 'F#', 'G#', 'A#']
-            };
-            
-            const transposedScale = allKeys[key];
-            if (!transposedScale) {
-                log(`❌ 無効なキー: ${key}`);
-                return;
-            }
             
             // 再生中にもう一度押されたら、前の再生を止めてやり直す
             stopAllPlayback();
@@ -3474,12 +3490,13 @@
             const wait = seconds => new Promise(resolve => setTimeout(resolve, seconds * 1000));
 
             try {
-                const chords = progression.chords.map(degree => getProgressionChord(key, transposedScale, degree));
+                const chords = buildProgressionChords(combo.pattern, key);
                 const octaveShift = pickOctaveShift(); // 1回の進行の中では同じ高さ
 
                 // 進行の再生（音声のみ、TTSなし）
                 for (const chord of chords) {
-                    await playProgressionChordOnly(getChordFrequencies(chord.root, chord.type, octaveShift), chord.name);
+                    lastProgressionChord = chord.name;
+                    await playProgressionChordOnly(getChordFrequencies(chord.root, chord.type, octaveShift), chord.name, chordDuration * chord.count);
                     if (token !== playbackToken) return;
                     await wait(progressionInterval);
                     if (token !== playbackToken) return;
