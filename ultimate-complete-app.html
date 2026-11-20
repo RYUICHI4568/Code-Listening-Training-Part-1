@@ -818,8 +818,9 @@
                 <label style="font-size: 0.9rem; font-weight: 700;">🎹 オクターブ</label>
                 <select class="octave-select" onchange="setOctaveMode(this.value)" style="flex: 1;"><option value="low">低</option><option value="mid" selected>中</option><option value="high">高</option><option value="auto">自動（ランダム）</option></select>
             </div>
+            <p class="hint" id="progression-hint" aria-live="polite"></p>
             <div class="mode-section" style="margin-bottom: 15px;">
-                <h3 data-i18n="progressionPattern" style="font-size: 1rem; margin-bottom: 10px;">🎼 コード進行パターン</h3>
+                <h3 data-i18n="progressionPattern" style="font-size: 1rem; margin-bottom: 10px;">🎼 コード進行パターン（複数選べます）</h3>
                 <div class="chord-types" style="gap: 4px;">
                     <div class="chord-type selected" data-pattern="basic1" onclick="selectProgression('basic1')" style="padding: 5px 8px; font-size: 0.75rem;">I-V-vi-IV</div>
                     <div class="chord-type" data-pattern="basic2" onclick="selectProgression('basic2')" style="padding: 5px 8px; font-size: 0.75rem;">vi-IV-I-V</div>
@@ -1101,7 +1102,8 @@
         let selectedKeys = []; // 画面の「ルート音」
         let selectedChordTypes = [''];
         let selectedProgressionKeys = ['C'];
-        let currentPattern = 'basic1';
+        let selectedPatterns = ['basic1']; // 進行パターン（複数選べる。再生ごとにランダム）
+        let lastProgressionCombo = null;
         let masterVolume = 0.5;
         let chordDuration = 2.0; // 2拍
         let waveformType = 'sine';
@@ -1654,7 +1656,9 @@
                 hintList: (names) => `出るコード：${names}`,
                 hintCount: (count) => `${count}種類のコードから出ます。`,
                 scaleSelection: '🎵 キーで選ぶ', directChords: '🎹 コードを直接選ぶ', keySelection: '🎹 ルート音', chordType: '🎶 コードタイプ',
-                progressionPattern: '🎼 コード進行パターン',
+                progressionPattern: '🎼 コード進行パターン（複数選べます）',
+                progressionRange: (patterns, keys) => `${patterns}パターン × ${keys}キーからランダム`,
+                progressionNow: (name, key) => `今：${name}（${key}キー）`,
                 scaleTitle: '🎶 スケール練習', scaleType: '種類', scaleRoot: '🎹 ルート音', octave: '🎹 オクターブ',
                 timerLabel: '⏰ 自動再生の予約', timerOff: 'なし', timer5: '5分後', timer15: '15分後', timer30: '30分後', timer60: '1時間後', timer120: '2時間後',
                 timerLeft: (time) => `あと ${time}`,
@@ -1674,7 +1678,9 @@
                 hintList: (names) => `Chords: ${names}`,
                 hintCount: (count) => `Plays from ${count} chords.`,
                 scaleSelection: '🎵 Pick a key', directChords: '🎹 Pick chords directly', keySelection: '🎹 Roots', chordType: '🎶 Chord Types',
-                progressionPattern: '🎼 Progression Pattern',
+                progressionPattern: '🎼 Progressions (pick any)',
+                progressionRange: (patterns, keys) => `Random from ${patterns} × ${keys} keys`,
+                progressionNow: (name, key) => `Now: ${name} (${key})`,
                 scaleTitle: '🎶 Scale Practice', scaleType: 'Type', scaleRoot: '🎹 Root', octave: '🎹 Octave',
                 timerLabel: '⏰ Start auto play', timerOff: 'Off', timer5: 'In 5 min', timer15: 'In 15 min', timer30: 'In 30 min', timer60: 'In 1 hour', timer120: 'In 2 hours',
                 timerLeft: (time) => `${time} left`,
@@ -1710,6 +1716,7 @@
             if (!isScaleAutoPlayRunning) document.getElementById('scale-auto-play-btn').textContent = t.scaleAuto;
 
             updateChordRangeHint();
+            updateProgressionHint();
             updateDockChips();
             if (typeof updateEarTrainingLanguage === 'function') updateEarTrainingLanguage();
         }
@@ -1913,7 +1920,7 @@
                 localStorage.setItem(SETTINGS_KEY, JSON.stringify({
                     mode: currentMode, language: currentLanguage,
                     selectedKeys, selectedScales, selectedChordTypes,
-                    selectedProgressionKeys, currentPattern,
+                    selectedProgressionKeys, selectedPatterns,
                     scaleRoot, scaleType: document.getElementById('scale-type-select').value,
                     volume: Math.round(masterVolume * 100), tempo, octaveMode,
                     enableArpeggio, enableRootEmphasisMode, rootEmphasis, ttsBeforeChord, repeatMode, showPlayedChord,
@@ -1941,6 +1948,7 @@
             if (!d) {
                 setScaleRoot('C');
                 updateChordRangeHint();
+                updateProgressionHint();
                 return;
             }
             const has = (selector) => document.querySelector(selector) !== null;
@@ -1960,7 +1968,9 @@
             }
             document.getElementById('direct-chord-config').open = selectedKeys.length > 0;
             selectedProgressionKeys = pick(d.selectedProgressionKeys, v => `#progression-settings [data-key="${v}"]`, selectedProgressionKeys);
-            if (d.currentPattern in advancedProgressions) currentPattern = d.currentPattern;
+            const savedPatterns = Array.isArray(d.selectedPatterns) ? d.selectedPatterns : [d.currentPattern];
+            const validPatterns = savedPatterns.filter(p => typeof p === 'string' && p in advancedProgressions);
+            if (validPatterns.length > 0) selectedPatterns = validPatterns;
             if (d.language === 'en') currentLanguage = 'en';
             enableArpeggio = d.enableArpeggio === true;
             enableRootEmphasisMode = d.enableRootEmphasisMode === true;
@@ -1976,7 +1986,7 @@
             mark('#random-settings [data-scale]', el => selectedScales.includes(el.dataset.scale));
             mark('#random-settings [data-type]', el => selectedChordTypes.includes(el.dataset.type));
             mark('#progression-settings [data-key]', el => selectedProgressionKeys.includes(el.dataset.key));
-            mark('[data-pattern]', el => el.dataset.pattern === currentPattern);
+            mark('[data-pattern]', el => selectedPatterns.includes(el.dataset.pattern));
             updateDockChips();
             document.getElementById('tts-before-chord').checked = ttsBeforeChord;
             document.getElementById('metronome-time-signature').value = metronomeTimeSignature;
@@ -2000,6 +2010,7 @@
             document.getElementById('toggle-played-chord').checked = showChord;
             togglePlayedChordVisibility(showChord);
             updateChordRangeHint();
+            updateProgressionHint();
             setScaleRoot(SCALE_ROOTS.includes(d.scaleRoot) ? d.scaleRoot : 'C');
             if (['random', 'progression', 'ear-training', 'scale', 'statistics'].includes(d.mode)) showMode(d.mode);
             if (currentLanguage === 'en') updateLanguage();
@@ -2026,6 +2037,7 @@
             }
             
             log(`🎼 選択中の進行キー: ${selectedProgressionKeys.join(', ')}`);
+            updateProgressionHint();
             saveSettings();
         }
 
@@ -2054,16 +2066,39 @@
 
         // === 進行選択 ===
         function selectProgression(pattern) {
-            currentPattern = pattern;
-            log(`🎼 進行選択: ${pattern}`);
-            
-            document.querySelectorAll('[data-pattern]').forEach(elem => {
-                elem.classList.remove('selected');
-            });
-            document.querySelector(`[data-pattern="${pattern}"]`).classList.add('selected');
-            
-            log(`🎼 選択された進行: ${advancedProgressions[pattern].name}`);
+            const element = document.querySelector(`[data-pattern="${pattern}"]`);
+            if (selectedPatterns.includes(pattern)) {
+                if (selectedPatterns.length === 1) return; // 最低1つの進行は選択状態を維持
+                selectedPatterns = selectedPatterns.filter(p => p !== pattern);
+                element.classList.remove('selected');
+            } else {
+                selectedPatterns.push(pattern);
+                element.classList.add('selected');
+            }
+            log(`🎼 選択中の進行: ${selectedPatterns.join(', ')}`);
+            updateProgressionHint();
             saveSettings();
+        }
+
+        // 進行タブの上に、選んでいる数と今鳴っている進行を出す
+        function updateProgressionHint(now) {
+            const el = document.getElementById('progression-hint');
+            if (!el) return;
+            const t = translations[currentLanguage];
+            const range = t.progressionRange(selectedPatterns.length, selectedProgressionKeys.length);
+            el.textContent = now ? `${t.progressionNow(now.name, now.key)} ／ ${range}` : range;
+        }
+
+        // 選んだ進行とキーの組み合わせからランダムに1つ（同じ組み合わせが続かないように）
+        function pickProgressionCombo() {
+            const combos = [];
+            selectedPatterns.forEach(pattern => {
+                selectedProgressionKeys.forEach(key => combos.push({ pattern, key }));
+            });
+            const fresh = combos.filter(c => !lastProgressionCombo || c.pattern !== lastProgressionCombo.pattern || c.key !== lastProgressionCombo.key);
+            const list = fresh.length > 0 ? fresh : combos;
+            lastProgressionCombo = list[Math.floor(Math.random() * list.length)];
+            return lastProgressionCombo;
         }
 
         // === 詳細設定 ===
@@ -3403,13 +3438,10 @@
                 return;
             }
             
-            const progression = advancedProgressions[currentPattern];
-            if (!progression) {
-                log('❌ 進行が選択されていません');
-                return;
-            }
-            
-            const key = selectedProgressionKeys[Math.floor(Math.random() * selectedProgressionKeys.length)];
+            const combo = pickProgressionCombo();
+            const progression = advancedProgressions[combo.pattern];
+            const key = combo.key;
+            updateProgressionHint({ name: progression.name, key });
             log(`🎼 進行再生開始: ${progression.name} in ${key}`);
             
             // フラット・シャープキーも含む完全なキー対応
